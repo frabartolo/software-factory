@@ -1,0 +1,32 @@
+# repo zeigt auf den Pfad auf kiara.
+# local_repo wird benutzt, solange dieser Pfad hier nicht existiert.
+
+projects:
+  factory:
+    repo: /srv/factory/repos/factory
+    local_repo: .
+    base_branch: main
+    checks:
+      - python3 -m py_compile scripts/deck.py
+      - python3 -m py_compile scripts/factoryd.py
+      - python3 -m py_compile scripts/run_job.py
+      - python3 -m py_compile scripts/validate_ticket.py
+      - python3 scripts/validate_ticket.py tickets/sample/FACT-EXAMPLE-control.md
+      - python3 scripts/factoryd.py --once --dry-run
+
+  cotrack:
+    repo: /srv/factory/repos/cotrack
+    base_branch: main
+    checks:
+      - npm run lint
+      - npm run build
+      - npm run test
+
+  example-web:
+    repo: /srv/factory/repos/example-web
+    base_branch: main
+    checks:
+      - npm run lint
+      - npm run build
+      - npm run test
+      - npx playwright test
