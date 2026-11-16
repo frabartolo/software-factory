@@ -1,0 +1,72 @@
+# Done ist absichtlich in keiner Rolle erlaubt.
+# Approved -> Done bleibt beim Menschen, und erst nach Merge- oder Deploy-Nachweis.
+
+accounts:
+  runner:
+    nextcloud_user: factory-runner
+    role: runner
+    label: factory-runner
+
+  hermes:
+    nextcloud_user: factory-hermes
+    role: hermes
+    label: factory-hermes
+
+  observer:
+    nextcloud_user: factory-observer
+    role: observer
+    label: factory-observer
+
+policies:
+  runner:
+    can_read_board: true
+    can_comment: true
+    can_update_description: true
+    allowed_transitions:
+      - from: "Ready / Bereit"
+        to: "Running / In Arbeit"
+      - from: "Ready / Bereit"
+        to: "Blocked / Failed"
+      - from: "Running / In Arbeit"
+        to: "Waiting Review / Gate"
+      - from: "Running / In Arbeit"
+        to: "Blocked / Failed"
+    forbidden_transitions:
+      - from: "Waiting Review / Gate"
+        to: "Approved / Freigegeben"
+      - from: "Waiting Review / Gate"
+        to: "Done / Erledigt"
+      - from: "Approved / Freigegeben"
+        to: "Done / Erledigt"
+
+  hermes:
+    can_read_board: true
+    can_comment: true
+    can_update_description: true
+    allowed_transitions:
+      - from: "Backlog / Neu"
+        to: "Ready / Bereit"
+      - from: "Backlog / Neu"
+        to: "Blocked / Failed"
+      - from: "Ready / Bereit"
+        to: "Blocked / Failed"
+      - from: "Waiting Review / Gate"
+        to: "Approved / Freigegeben"
+      - from: "Waiting Review / Gate"
+        to: "Blocked / Failed"
+    approve_requires_human_name: true
+    forbidden_transitions:
+      - from: "Ready / Bereit"
+        to: "Running / In Arbeit"
+      - from: "Running / In Arbeit"
+        to: "Waiting Review / Gate"
+      - from: "Waiting Review / Gate"
+        to: "Done / Erledigt"
+      - from: "Approved / Freigegeben"
+        to: "Done / Erledigt"
+
+  observer:
+    can_read_board: true
+    can_comment: false
+    can_update_description: false
+    allowed_transitions: []

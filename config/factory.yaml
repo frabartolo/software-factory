@@ -1,0 +1,83 @@
+# Zugangsdaten stehen nicht in dieser Datei.
+# Der Runner liest /etc/factory/runner.env oder NC_BASE, NC_USER und
+# NC_APP_PASSWORD bzw. NC_OAUTH_ACCESS_TOKEN aus der Umgebung.
+# Der bestehende Hermes-Token bleibt beim Agenten KIara auf kiara.
+
+board:
+  id: 7
+  name: Software-Factory
+
+stacks:
+  backlog: "Backlog / Neu"
+  ready: "Ready / Bereit"
+  running: "Running / In Arbeit"
+  waiting_review: "Waiting Review / Gate"
+  approved: "Approved / Freigegeben"
+  done: "Done / Erledigt"
+  blocked: "Blocked / Failed"
+
+paths:
+  tickets: tickets
+  reports: reports
+  logs: logs
+  worktrees: worktrees
+  audit: audit/audit.jsonl
+  prompts: prompts
+
+models:
+  default_worker: kiara
+  worker_model: bonsai2-27b
+  # Erreichbar im LAN. Die Chat-Oberfläche liegt auf demselben Port.
+  # llama.cpp liefert diese Oberfläche nur, wenn der Client gzip akzeptiert.
+  kiara_endpoint: http://kiara:8080/v1
+  kiara_endpoint_local: http://127.0.0.1:8080/v1
+  flaps_endpoint: http://flaps:8080/v1
+  flaps_endpoint_fallback: http://192.168.5.20:8080/v1
+  flaps_model: qwen3.8-flash-next-iq3_s
+  # flaps kann die Antwort in reasoning_content statt content legen.
+  response_fields:
+    - content
+    - reasoning_content
+
+routing:
+  kiara:
+    role: implementation_default
+    health:
+      endpoints:
+        - http://kiara:8080/v1/models
+        - http://127.0.0.1:8080/v1/models
+      required: true
+  flaps:
+    role: review_verification
+    health:
+      endpoints:
+        - http://flaps:8080/v1/models
+        - http://192.168.5.20:8080/v1/models
+      required: false
+    on_unavailable:
+      - decompose_for_kiara
+      - queue_for_next_window
+      - escalate_human_with_spec
+
+limits:
+  queue_depth: 2
+  poll_seconds: 30
+  max_walltime_minutes: 30
+  max_turns: 15
+  max_files: 10
+
+gate:
+  auto_merge: false
+  require_human_approval: true
+  named_approver_required: true
+  zero_gate_escape: true
+
+harness:
+  runner_env: /etc/factory/runner.env
+  hermes_env: /etc/factory/hermes.env
+  observer_env: /etc/factory/observer.env
+  implementation_env: none
+
+worker:
+  # Bootstrap führt keinen Implementierungs-Agenten aus.
+  execute: false

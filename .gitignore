@@ -5,3 +5,16 @@ __pycache__/
 *.swp
 *.swo
 *.py~
+
+.venv/
+venv/
+.env
+*.env
+
+audit/*.jsonl
+logs/*
+!logs/.gitkeep
+reports/*
+!reports/.gitkeep
+worktrees/*
+!worktrees/.gitkeep
