@@ -1,0 +1,47 @@
+{
+  "ticket": "FACT-007",
+  "file": "/home/kiara/software-factory/tickets/done/FACT-007.md",
+  "outcome": "done",
+  "model": "kiara",
+  "budget": {
+    "max_walltime": 1500,
+    "max_turns": 12,
+    "max_files": 6
+  },
+  "work": {
+    "ok": true,
+    "model": "kiara",
+    "summary": "Erstellt factory.py mit den Subkommandos status, jobs und tail-audit. Status zeigt Zählungen pro Ticket-Zustand (new, running, waiting-review, passed, failed). Jobs listet aktive Tickets (running/waiting-review) oder meldet sauber 'No running...'. Tail-audit zeigt die letzten 20 Zeilen der audit.log oder gibt eine klare Warnung, wenn die Datei fehlt. Alle CHECKS (status, jobs) passgen.",
+    "turns": 10,
+    "files": [
+      "factory.py",
+      "factory_state.json"
+    ],
+    "errors": []
+  },
+  "command_checks": [
+    {
+      "cmd": "python3 factory.py status",
+      "ok": true,
+      "exit": 0,
+      "out": "Factory Status\n========================================\n  new                1\n  running            1\n  waiting-review     1\n  passed             1\n  failed             1\n----------------------------------------\n  total              5"
+    },
+    {
+      "cmd": "python3 factory.py jobs",
+      "ok": true,
+      "exit": 0,
+      "out": "Active Jobs (running / waiting-review)\n============================================================\nID         State              Title                          Assigned       \n------------------------------------------------------------\nT-002      running            Fix parser bug                 alice          \nT-003      waiting-review     Update docs                    bob"
+    }
+  ],
+  "scenario_judge": {
+    "pass": true,
+    "reason": "Alle drei Akzeptanzkriterien sind erfüllt: (1) cmd_status() zeigt alle fünf Zustände (new, running, waiting-review, passed, failed) mit korrekten Counts aus der State-Datei an. (2) Bei fehlenden aktiven Jobs (cmd_jobs) wird die Nachricht 'No running or waiting-review jobs.' ausgegeben und der Prozess endet sauber mit Exit-Code 0; cmd_status() zeigt bei leeren/fehlenden Tickets ebenfalls saubere Null-Zähler. (3) cmd_tail_audit() prüft die Existenz von audit.log und gibt bei Fehlschlag die klare Warnung 'WARNING: Audit log not found at ...' aus, ohne abzukrauschen.",
+    "violations": [],
+    "model": "kiara"
+  },
+  "reason": "",
+  "started": "2026-11-15T22:03:57",
+  "finished": "2026-11-15T22:03:57",
+  "dry_run": false,
+  "deck_writeback": false
+}

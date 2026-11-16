@@ -1,0 +1,14 @@
+{"ts": "2026-11-15T20:32:24", "ticket": "FACT-EXAMPLE", "station": "new", "note": "pick"}
+{"ts": "2026-11-15T20:33:59", "ticket": "FACT-TEST-001", "station": "new", "note": "pick"}
+{"ts": "2026-11-15T20:34:02", "ticket": "FACT-TEST-001", "station": "running", "note": "work-start"}
+{"ts": "2026-11-15T20:34:48", "ticket": "FACT-TEST-001", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-15T20:34:54", "ticket": "FACT-TEST-001", "station": "approved", "note": "approved"}
+{"ts": "2026-11-15T20:34:54", "ticket": "FACT-TEST-001", "station": "done", "note": "done"}
+{"ts": "2026-11-15T20:34:54", "ticket": "FACT-TEST-001", "station": "done", "note": "finish", "model": "kiara", "files": ["greeting.py"], "cmd_ok": true}
+{"ts": "2026-11-15T21:43:25", "ticket": "FACT-007", "station": "new", "note": "pick"}
+{"ts": "2026-11-15T22:02:22", "ticket": "FACT-007", "station": "new", "note": "pick"}
+{"ts": "2026-11-15T22:02:25", "ticket": "FACT-007", "station": "running", "note": "work-start"}
+{"ts": "2026-11-15T22:03:41", "ticket": "FACT-007", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-15T22:03:57", "ticket": "FACT-007", "station": "approved", "note": "approved"}
+{"ts": "2026-11-15T22:03:57", "ticket": "FACT-007", "station": "done", "note": "done"}
+{"ts": "2026-11-15T22:03:57", "ticket": "FACT-007", "station": "done", "note": "finish", "model": "kiara", "files": ["factory.py", "factory_state.json"], "cmd_ok": true}

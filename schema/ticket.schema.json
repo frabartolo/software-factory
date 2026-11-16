@@ -1,0 +1,20 @@
+{
+  "name": "software-factory-ticket",
+  "version": 1,
+  "format": "markdown",
+  "heading_prefix": "##",
+  "required_headings": [
+    "Goal",
+    "Success criteria",
+    "Acceptance examples",
+    "Forbidden",
+    "Checks",
+    "Budget"
+  ],
+  "non_empty_required_sections": true,
+  "budget_required_keys": [
+    "max_walltime",
+    "max_turns",
+    "max_files"
+  ]
+}

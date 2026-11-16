@@ -1,0 +1,1 @@
+{"tickets":[{"id":"T-001","state":"new","title":"Add login page"},{"id":"T-002","state":"running","title":"Fix parser bug","assigned_to":"alice"},{"id":"T-003","state":"waiting-review","title":"Update docs","assigned_to":"bob"},{"id":"T-004","state":"passed","title":"Refactor utils"},{"id":"T-005","state":"failed","title":"CI pipeline"}]}
