@@ -12,3 +12,12 @@
 {"ts": "2026-11-15T22:03:57", "ticket": "FACT-007", "station": "approved", "note": "approved"}
 {"ts": "2026-11-15T22:03:57", "ticket": "FACT-007", "station": "done", "note": "done"}
 {"ts": "2026-11-15T22:03:57", "ticket": "FACT-007", "station": "done", "note": "finish", "model": "kiara", "files": ["factory.py", "factory_state.json"], "cmd_ok": true}
+{"ts": "2026-11-16T22:14:50", "ticket": "FACT-003", "station": "new", "note": "pick"}
+{"ts": "2026-11-17T11:32:35", "ticket": "FACT-001", "station": "new", "note": "pick"}
+{"ts": "2026-11-17T11:32:38", "ticket": "FACT-003", "station": "new", "note": "pick"}
+{"ts": "2026-11-17T16:00:00", "ticket": "DEMO-01", "station": "new", "note": "pick"}
+{"ts": "2026-11-17T16:00:00", "ticket": "DEMO-01", "station": "running", "note": "claimed"}
+{"ts": "2026-11-17T16:00:00", "ticket": "DEMO-01", "station": "running", "note": "work-start"}
+{"ts": "2026-11-17T16:00:20", "ticket": "DEMO-01", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-17T16:00:32", "ticket": "DEMO-01", "station": "approved", "note": "approved"}
+{"ts": "2026-11-17T16:00:32", "ticket": "DEMO-01", "station": "approved", "note": "finish", "model": "kiara", "files": ["greet.py"], "cmd_ok": true}

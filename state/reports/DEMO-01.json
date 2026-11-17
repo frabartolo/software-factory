@@ -1,0 +1,40 @@
+{
+  "ticket": "DEMO-01",
+  "file": "/home/kiara/software-factory/tickets/approved/DEMO-01.md",
+  "outcome": "approved",
+  "model": "kiara",
+  "budget": {
+    "max_walltime": 600,
+    "max_turns": 8,
+    "max_files": 3
+  },
+  "work": {
+    "ok": true,
+    "model": "kiara",
+    "summary": "Erstellte greet.py mit der Funktion greet(name), die 'Hallo, ' + name zurückgibt. Leerer String ist erlaubt, None wirft TypeError. Alle Checks (Normalfall, Grenzfall, Fehlerfall) passgen.",
+    "turns": 7,
+    "files": [
+      "greet.py"
+    ],
+    "errors": []
+  },
+  "command_checks": [
+    {
+      "cmd": "python3 -c \"from greet import greet; assert greet('Welt')=='Hallo, Welt'; assert greet('')=='Hallo, '\"",
+      "ok": true,
+      "exit": 0,
+      "out": ""
+    }
+  ],
+  "scenario_judge": {
+    "pass": true,
+    "reason": "greet.py enthält die Funktion greet(name). greet('Welt') liefert 'Hallo, Welt', greet('') liefert 'Hallo, ', und greet(None) wirft eine TypeError-Exception.",
+    "violations": [],
+    "model": "flaps"
+  },
+  "reason": "",
+  "started": "2026-11-17T16:00:32",
+  "finished": "2026-11-17T16:00:32",
+  "dry_run": false,
+  "deck_writeback": false
+}

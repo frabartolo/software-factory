@@ -1,0 +1,32 @@
+{
+  "97": {
+    "file": "FACT-001.md",
+    "title": "FACT-001 \u2014 Factory-Meta: Ticket-Schema und Datei-Queue-Ger\u00fcst",
+    "imported_at": "2026-11-17T01:56:32"
+  },
+  "120": {
+    "file": "FACT-013.md",
+    "title": "FACT-013 \u2014 Findings",
+    "imported_at": "2026-11-17T11:56:32"
+  },
+  "100": {
+    "file": "FACT-004.md",
+    "title": "FACT-004 \u2014 Factory-Meta: Check-Pipeline wrapper f\u00fcr Projekt-Build/Test/Lint",
+    "imported_at": "2026-11-17T18:27:33"
+  },
+  "101": {
+    "file": "FACT-005.md",
+    "title": "FACT-005 \u2014 Factory-Meta: Job-Report f\u00fcr jedes Ticket",
+    "imported_at": "2026-11-17T18:27:33"
+  },
+  "107": {
+    "file": "FACT-011.md",
+    "title": "FACT-011 \u2014 Cotrack Pilot: Status\u00e4nderung \u00fcber Dropdown in der Ticketansicht",
+    "imported_at": "2026-11-17T18:27:33"
+  },
+  "108": {
+    "file": "FACT-012.md",
+    "title": "FACT-012 \u2014 Cotrack Pilot: Factory-Statusfelder im Modell und UI sichtbar machen",
+    "imported_at": "2026-11-17T18:27:33"
+  }
+}
