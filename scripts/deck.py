@@ -60,11 +60,13 @@ class DeckClient:
         raise FactoryError(f"Stack „{title}“ fehlt auf dem Board. Vorhanden: {known}")
 
     def move_card(self, card: dict[str, Any], target_title: str) -> None:
-        source_id = int(card["stackId"])
         card_id = int(card["id"])
         target = self.stack_by_title(target_title)
         target_id = int(target["id"])
-        path = f"/boards/{self.board_id}/stacks/{source_id}/cards/{card_id}/reorder"
+        # Deck-Issue #6830/#7933: reorder() liest den Target-Stack aus dem
+        # URL-Pfad (Route-Parameter {stackId}); der stackId-Wert im Body
+        # wird ignoriert. Target-Stack muss also in den Pfad.
+        path = f"/boards/{self.board_id}/stacks/{target_id}/cards/{card_id}/reorder"
         try:
             self._request("PUT", path, {"order": 0, "stackId": target_id})
         except FactoryError as exc:

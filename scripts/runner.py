@@ -3,8 +3,9 @@
 FACT-002: Runner — das Work-Engine / der zentrale Hub der Software-Factory.
 
 Stationen (README.md):
-    new -> ready -> running -> gate -> approved -> done
+    new -> ready -> running -> gate -> approved (Review-Station)
                                           (oder) -> blocked
+    done: nur nach namentlicher menschlicher Freigabe (niemals automatisch)
 
 Dieser Runner führt ein Ticket durch einen vollständigen, autonomen Zyklus:
     pick (tickets/new)
@@ -16,8 +17,8 @@ Dieser Runner führt ein Ticket durch einen vollständigen, autonomen Zyklus:
       -> CHECK      (UNABHÄNGIG: deterministische ## Checks-Commands +
                     scenario-basiertes Szenario-Judge — NIEMALS der
                     implementierende Agent)
-      -> STATUS     (Station-Shift: running -> gate -> approved/done
-                    oder blocked)
+      -> STATUS     (Station-Shift: running -> gate -> approved
+                    oder blocked; kein automatisches done)
       -> REPORT     (Job-Report state/reports/<ticket>.json + Audit-Log
                     state/audit.log)
       -> (opt) DECK-WRITEBACK  (Deck-Karte in die neue Station schieben,
@@ -440,7 +441,9 @@ def llm_call(name, cfg, messages, max_tokens=LLM_MAX_TOKENS, timeout=LLM_TIMEOUT
     req = urllib.request.Request(url, data=body, method="POST", headers=headers)
     with urllib.request.urlopen(req, context=_ctx(), timeout=timeout) as r:
         data = json.loads(r.read().decode())
-    return data["choices"][0]["message"]["content"]
+    msg = data["choices"][0]["message"]
+    # kiara antwortet in "content", flaps teils nur in "reasoning_content".
+    return (msg.get("content") or msg.get("reasoning_content") or "").strip()
 
 
 def llm_call_any(models, messages, max_tokens=LLM_MAX_TOKENS, timeout=LLM_TIMEOUT):
@@ -809,6 +812,8 @@ def process_ticket(path, args):
         ticket_id = current.stem
         print(f"[runner] pick: {ticket_id} ({current.parent.name})")
         audit(ticket_id, "new", "pick")
+        # --- CLAIM (atomar new->running, verhindert doppelte Verarbeitung) ---
+        current = shift_ticket(current, "running", ticket_id, "claimed")
         # --- Validierung ---
         ok, msg = validate_ticket(current)
         if not ok:
@@ -871,9 +876,10 @@ def process_ticket(path, args):
         outcome = "approved" if final_ok else "blocked"
         if final_ok:
             append_result_section(current, "approved", work, cmd_checks, scenario)
+            # Review-Station: nach grünen Checks in approved stoppen;
+            # Done erst nach namentlicher menschlicher Freigabe (FACT-013).
             current = shift_ticket(current, "approved", ticket_id, "approved")
-            current = shift_ticket(current, "done", ticket_id, "done")
-            outcome = "done"
+            outcome = "approved"
         else:
             extra = reason or ""
             if not reason:

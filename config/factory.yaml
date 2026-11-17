@@ -53,7 +53,7 @@ routing:
       endpoints:
         - http://flaps:8080/v1/models
         - http://192.168.5.20:8080/v1/models
-      required: false
+      required: true
     on_unavailable:
       - decompose_for_kiara
       - queue_for_next_window
