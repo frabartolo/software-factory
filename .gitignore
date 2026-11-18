@@ -18,3 +18,5 @@ reports/*
 !reports/.gitkeep
 worktrees/*
 !worktrees/.gitkeep
+repos/*
+work/*

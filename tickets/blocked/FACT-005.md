@@ -31,11 +31,22 @@ Create a job report format for every factory run so that a human gate can review
 
 ## Checks
 
-- python3 factory.py report-test --ticket tickets/sample/FACT-EXAMPLE.md
-- find reports -type f
+- python3 ../../factory.py report-test tickets/sample/FACT-EXAMPLE.md
+- find ../../reports -type f
 
 ## Budget
 
 max_walltime: 20m
 max_turns: 10
 max_files: 6
+
+
+## Factory-Result
+- outcome: blocked
+- model: kiara
+- turns: 9
+- files: []
+- errors: ['walltime (1200s) überschritten']
+- command-checks:
+  - (keine)
+- note: Implementer hat keine Dateien erzeugt.

@@ -15,12 +15,13 @@ projects:
       - python3 scripts/factoryd.py --once --dry-run
 
   cotrack:
-    repo: /srv/factory/repos/cotrack
+    repo: https://github.com/IlianP/cotrack
+    local_repo: repos/cotrack
     base_branch: main
     checks:
-      - npm run lint
-      - npm run build
-      - npm run test
+      - node --check src/worker.js
+      - node --check src/mcp.js
+      - npx wrangler build
 
   example-web:
     repo: /srv/factory/repos/example-web

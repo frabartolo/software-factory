@@ -1,0 +1,78 @@
+{
+  "ticket": "FACT-013",
+  "file": "/home/kiara/software-factory/tickets/blocked/FACT-013.md",
+  "outcome": "blocked",
+  "model": "kiara",
+  "budget": {
+    "max_walltime": 1800,
+    "max_turns": 16,
+    "max_files": 10
+  },
+  "work": {
+    "ok": false,
+    "model": "kiara",
+    "summary": "",
+    "turns": 16,
+    "files": [
+      "README.md",
+      "scripts/deck_sync.py",
+      "scripts/runner.py",
+      "scripts/validate_factory_schema.py"
+    ],
+    "errors": [
+      "max_turns erreicht, kein done"
+    ]
+  },
+  "command_checks": [
+    {
+      "cmd": "grep -q 'shift_ticket.*\"approved\"' ../../scripts/runner.py",
+      "ok": true,
+      "exit": 0,
+      "out": ""
+    },
+    {
+      "cmd": "python3 -c \"import pathlib; t=pathlib.Path('../../scripts/runner.py').read_text(); assert 'shift_ticket(current, \\\"done\\\"' not in t\"",
+      "ok": true,
+      "exit": 0,
+      "out": ""
+    },
+    {
+      "cmd": "python3 -c \"import pathlib; t=pathlib.Path('../../scripts/deck_sync.py').read_text(); assert 'validate_ticket' in t\"",
+      "ok": true,
+      "exit": 0,
+      "out": ""
+    },
+    {
+      "cmd": "test -f ../../README.md && grep -qi 'queue' ../../README.md",
+      "ok": true,
+      "exit": 0,
+      "out": ""
+    },
+    {
+      "cmd": "grep -qi 'gate\\|approved' ../../README.md",
+      "ok": true,
+      "exit": 0,
+      "out": ""
+    },
+    {
+      "cmd": "head -n 60 ../../scripts/runner.py | grep -q 'approved'",
+      "ok": true,
+      "exit": 0,
+      "out": ""
+    }
+  ],
+  "scenario_judge": {
+    "pass": false,
+    "reason": "Die meisten Kriterien sind erfüllt: deck_sync.py importiert Ready-Cards nach tickets/new/, validiert sie und überspringt ungültige Karten; runner.py stoppt nach approved und verschiebt niemals nach done; validate_factory_schema.py gibt bei fehlenden Pflicht-Sektionen Exit 1 zurück; README dokumentiert die geforderten Verzeichnisse. Es gibt jedoch eine nachweisbare Lücke: runner.py verschiebt Tickets nicht explizit nach tickets/running/, obwohl README und Akzeptanzkriterien die Station running/ als Verzeichnis im Ablauf verlangen. Zudem verwendet deck_sync.py nicht die im Kriterium genannte validate_ticket.py, sondern validate_factory_schema.py.",
+    "violations": [
+      "runner.py verschiebt Tickets nicht nach tickets/running/, obwohl die README und die geforderten Verzeichnisse running/ als Station enthalten.",
+      "deck_sync.py validiert nicht per validate_ticket.py, sondern per validate_factory_schema.py."
+    ],
+    "model": "flaps"
+  },
+  "reason": "Check(s) fehlgeschlagen:  | judge: Die meisten Kriterien sind erfüllt: deck_sync.py importiert ",
+  "started": "2026-11-17T21:32:09",
+  "finished": "2026-11-17T21:32:09",
+  "dry_run": false,
+  "deck_writeback": true
+}

@@ -32,6 +32,7 @@ import re
 import ssl
 import sys
 import time
+import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -179,6 +180,18 @@ def build_content(card: dict, stack: dict) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+# --- Validation (Schema-Gate) -----------------------------------------------
+def _validate_ticket(path: str) -> tuple[bool, str]:
+    """Validiert ein importiertes Ticket per validate_ticket.py.
+    Liefert (ok, out). Fällt zurück, falls Validator fehlt."""
+    validator = os.path.join(FACTORY_DIR, "scripts", "validate_ticket.py")
+    if not os.path.exists(validator):
+        return True, ""
+    r = subprocess.run([sys.executable, validator, path],
+                       capture_output=True, text=True)
+    return (r.returncode == 0), (r.stdout or "") + (r.stderr or "")
+
+
 # --- Main -------------------------------------------------------------------
 def main(argv: list = None) -> int:
     ap = argparse.ArgumentParser(description="Importiert Deck-Ready-Cards in die Datei-Queue.")
@@ -243,6 +256,12 @@ def main(argv: list = None) -> int:
             continue
         with open(path, "w") as f:
             f.write(content)
+        ok, out = _validate_ticket(path)
+        if not ok:
+            os.remove(path)
+            print(f"[skip] validation FAILED -> {path}")
+            print(f"    {out.strip()[:200]}")
+            continue
         state[sid] = {"file": filename, "title": title,
                       "imported_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
         save_state(state)

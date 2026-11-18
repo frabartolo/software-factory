@@ -21,3 +21,21 @@
 {"ts": "2026-11-17T16:00:20", "ticket": "DEMO-01", "station": "gate", "note": "checks-start"}
 {"ts": "2026-11-17T16:00:32", "ticket": "DEMO-01", "station": "approved", "note": "approved"}
 {"ts": "2026-11-17T16:00:32", "ticket": "DEMO-01", "station": "approved", "note": "finish", "model": "kiara", "files": ["greet.py"], "cmd_ok": true}
+{"ts": "2026-11-17T19:45:33", "ticket": "FACT-013", "station": "new", "note": "pick"}
+{"ts": "2026-11-17T19:45:33", "ticket": "FACT-013", "station": "running", "note": "claimed"}
+{"ts": "2026-11-17T19:45:33", "ticket": "FACT-013", "station": "running", "note": "work-start"}
+{"ts": "2026-11-17T20:04:13", "ticket": "FACT-013", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-17T20:04:58", "ticket": "FACT-013", "station": "blocked", "note": "blocked"}
+{"ts": "2026-11-17T20:04:58", "ticket": "FACT-013", "station": "blocked", "note": "finish", "model": "kiara", "files": ["README.md", "scripts/deck_sync.py", "scripts/runner.py", "scripts/validate_factory_schema.py", "tickets/new/FACT-013.md"], "cmd_ok": false}
+{"ts": "2026-11-17T20:09:50", "ticket": "FACT-005", "station": "new", "note": "pick"}
+{"ts": "2026-11-17T20:09:50", "ticket": "FACT-005", "station": "running", "note": "claimed"}
+{"ts": "2026-11-17T20:09:50", "ticket": "FACT-005", "station": "running", "note": "work-start"}
+{"ts": "2026-11-17T20:30:47", "ticket": "FACT-005", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-17T20:30:47", "ticket": "FACT-005", "station": "blocked", "note": "blocked"}
+{"ts": "2026-11-17T20:30:47", "ticket": "FACT-005", "station": "blocked", "note": "finish", "model": "kiara", "files": [], "cmd_ok": null}
+{"ts": "2026-11-17T21:16:49", "ticket": "FACT-013", "station": "new", "note": "pick"}
+{"ts": "2026-11-17T21:16:49", "ticket": "FACT-013", "station": "running", "note": "claimed"}
+{"ts": "2026-11-17T21:16:49", "ticket": "FACT-013", "station": "running", "note": "work-start"}
+{"ts": "2026-11-17T21:31:32", "ticket": "FACT-013", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-17T21:32:09", "ticket": "FACT-013", "station": "blocked", "note": "blocked"}
+{"ts": "2026-11-17T21:32:09", "ticket": "FACT-013", "station": "blocked", "note": "finish", "model": "kiara", "files": ["README.md", "scripts/deck_sync.py", "scripts/runner.py", "scripts/validate_factory_schema.py"], "cmd_ok": true}

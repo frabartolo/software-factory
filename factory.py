@@ -213,8 +213,9 @@ def cmd_check(args: argparse.Namespace) -> int:
     results = []
     for c in checks:
         try:
+            cwd = os.path.abspath(os.path.join(str(ROOT), local_repo)) if local_repo else str(ROOT)
             res = subprocess.run(
-                c, shell=True, capture_output=True, text=True, cwd=str(ROOT), timeout=300,
+                c, shell=True, capture_output=True, text=True, cwd=cwd, timeout=300,
             )
             ok = res.returncode == 0
         except Exception as exc:

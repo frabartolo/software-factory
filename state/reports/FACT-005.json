@@ -1,0 +1,28 @@
+{
+  "ticket": "FACT-005",
+  "file": "/home/kiara/software-factory/tickets/blocked/FACT-005.md",
+  "outcome": "blocked",
+  "model": "kiara",
+  "budget": {
+    "max_walltime": 1200,
+    "max_turns": 10,
+    "max_files": 6
+  },
+  "work": {
+    "ok": false,
+    "model": "kiara",
+    "summary": "",
+    "turns": 9,
+    "files": [],
+    "errors": [
+      "walltime (1200s) überschritten"
+    ]
+  },
+  "command_checks": [],
+  "scenario_judge": null,
+  "reason": "Implementer hat keine Dateien erzeugt.",
+  "started": "2026-11-17T20:30:47",
+  "finished": "2026-11-17T20:30:47",
+  "dry_run": false,
+  "deck_writeback": false
+}
