@@ -1,6 +1,6 @@
 # Anforderungen der Software-Factory
 
-Stand 19. November 2026. Das Board ist „Software-Factory“, Id 7, auf Nextcloud. Die Spalten heißen Backlog / Neu, Ready / Bereit, Running / In Arbeit, Waiting Review / Gate, Approved / Freigegeben, Done / Erledigt und Blocked / Failed.
+Stand 19. November 2026. Das Board ist „Software-Factory“, Id 7, auf Nextcloud. Die Spalten heißen Backlog / Neu, Ready / Bereit, Running / In Arbeit, Waiting Review / Gate, Approved / Freigegeben, Done / Erledigt und Blocked / Failed. **Das Deck ist die Single Source of Truth:** Alle Vorgänge (FACT-…-Tickets) werden dort **bearbeitet**, **ergänzt** und **durch den Prozess** auf den Stacks geschoben.
 
 ## Ablauf einer Karte
 

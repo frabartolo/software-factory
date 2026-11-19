@@ -40,7 +40,7 @@ Factory Runner / Orchestrator auf kiara
 
 Wichtige Rollen:
 
-- **Nextcloud Deck:** menschliche Kontrolle, Ticket-Queue, Statusanzeige, Review-Historie
+- **Nextcloud Deck (Single Source of Truth):** menschliche Kontrolle, Ticket-Queue, Statusanzeige, Review-Historie — dort werden Vorgänge bearbeitet, ergänzt und durch den Prozess geschoben
 - **Hermes/KIara im Discord:** Aufnahme, Rückfragen, Spec-Engineering, Statuskontrolle, Freigabe-Anstoß, Review-Zusammenfassung
 - **Factory Runner / Orchestrator auf kiara:** eigentliche Factory-Logik
 - **OpenCode:** Implementierungs-Agent

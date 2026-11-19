@@ -1,9 +1,10 @@
 # Software-Factory — lokales Gerüst (2 Personen)
 
-Lokale Software-Factory für den Haushalt (2 Personen: Nutzer + Sohn). Tickets
-kommen aus dem Nextcloud-Deck-Board **„Software-Factory"** (Board 7) und werden
-in einer lokalen **Datei-Queue** geführt: Jede Station der Pipeline ist ein
-Verzeichnis, jedes Ticket ist eine Markdown-Datei.
+Lokale Software-Factory für den Haushalt (2 Personen: Nutzer + Sohn). Tickets kommen aus dem Nextcloud-Deck-Board **„Software-Factory"** (Board 7).
+**Das Deck ist die Single Source of Truth:** Alle Vorgänge werden dort
+**bearbeitet**, **ergänzt** und **durch den Prozess geschoben**. Die lokale
+**Datei-Queue** (`tickets/`) ist nur ein abgeleiteter Puffer — jede Station
+der Pipeline ist ein Verzeichnis, jedes Ticket eine Markdown-Datei.
 
 ## Pipeline & Stations-Mapping (5 Stationen)
 
