@@ -78,7 +78,7 @@ def implementer_name_from_comments(comments: list[dict[str, Any]]) -> str | None
     return None
 
 
-def _clip(text: str, limit: int = 4000) -> str:
+def _clip(text: str, limit: int = 1000) -> str:
     cleaned = text.strip()
     try:
         assert_no_secrets(cleaned, "kommentar")
