@@ -77,6 +77,21 @@ class DeckClient:
     def update_description(self, card: dict[str, Any], description: str) -> None:
         self._update_card(card, {"description": description})
 
+    def list_comments(self, card_id: int) -> list[dict[str, Any]]:
+        payload = self._request("GET", f"/cards/{int(card_id)}/comments")
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+        return []
+
+    def add_comment(self, card_id: int, message: str) -> Any:
+        text = message.strip()
+        assert_no_secrets(text, "kommentar")
+        return self._request(
+            "POST",
+            f"/cards/{int(card_id)}/comments",
+            {"message": text},
+        )
+
     def _update_card(self, card: dict[str, Any], changes: dict[str, Any]) -> None:
         stack_id = int(card["stackId"])
         card_id = int(card["id"])
@@ -172,7 +187,11 @@ def require_permission(role: str, flag: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Nextcloud Deck für die Software-Factory")
-    parser.add_argument("--role", default="runner", choices=("runner", "hermes", "observer"))
+    parser.add_argument(
+        "--role",
+        default="runner",
+        choices=("runner", "hermes", "observer", "reviewer"),
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("auth-status", help="zeigt, ob Zugangsdaten vorhanden sind")
@@ -191,6 +210,11 @@ def main(argv: list[str] | None = None) -> int:
     describe.add_argument("--card", type=int, required=True)
     describe.add_argument("--file", required=True)
     describe.add_argument("--dry-run", action="store_true")
+
+    comment = sub.add_parser("comment", help="Kommentar an eine Karte hängen")
+    comment.add_argument("--card", type=int, required=True)
+    comment.add_argument("--message", required=True)
+    comment.add_argument("--dry-run", action="store_true")
 
     args = parser.parse_args(argv)
     try:
@@ -270,6 +294,14 @@ def main(argv: list[str] | None = None) -> int:
                 }
             )
             print(f"Beschreibung aktualisiert: {args.card}")
+            return 0
+        if args.command == "comment":
+            require_permission(args.role, "can_comment")
+            if args.dry_run:
+                print(f"Dry-run: Kommentar an Karte {args.card}")
+                return 0
+            deck.add_comment(args.card, args.message)
+            print(f"Kommentar geschrieben: {args.card}")
             return 0
     except (FactoryError, PolicyError, OSError) as exc:
         print(str(exc), file=sys.stderr)

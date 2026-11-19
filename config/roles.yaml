@@ -17,6 +17,11 @@ accounts:
     role: observer
     label: factory-observer
 
+  reviewer:
+    nextcloud_user: factory-observer
+    role: reviewer
+    label: factory-reviewer
+
 policies:
   runner:
     can_read_board: true
@@ -70,3 +75,22 @@ policies:
     can_comment: false
     can_update_description: false
     allowed_transitions: []
+
+  reviewer:
+    can_read_board: true
+    can_comment: true
+    can_update_description: false
+    allowed_transitions:
+      - from: "Waiting Review / Gate"
+        to: "Approved / Freigegeben"
+      - from: "Waiting Review / Gate"
+        to: "Blocked / Failed"
+    forbidden_transitions:
+      - from: "Waiting Review / Gate"
+        to: "Done / Erledigt"
+      - from: "Approved / Freigegeben"
+        to: "Done / Erledigt"
+      - from: "Backlog / Neu"
+        to: "Ready / Bereit"
+      - from: "Ready / Bereit"
+        to: "Running / In Arbeit"
