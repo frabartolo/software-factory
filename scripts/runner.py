@@ -447,13 +447,18 @@ def llm_call(name, cfg, messages, max_tokens=LLM_MAX_TOKENS, timeout=LLM_TIMEOUT
 
 
 def llm_call_any(models, messages, max_tokens=LLM_MAX_TOKENS, timeout=LLM_TIMEOUT):
-    """Probiert Modelle in Reihenfolge; (name, content) oder (None, None)."""
+    """Probiert Modelle in Reihenfolge. (name, content, fehler)."""
+    failures = []
     for name, cfg in models:
         try:
-            return name, llm_call(name, cfg, messages, max_tokens, timeout)
-        except Exception:
+            text = llm_call(name, cfg, messages, max_tokens, timeout)
+        except Exception as exc:
+            failures.append(f"{name} {cfg.get('url', '')}: {exc}")
             continue
-    return None, None
+        if text:
+            return name, text, ""
+        failures.append(f"{name} {cfg.get('url', '')}: leere Antwort")
+    return None, None, "; ".join(failures)
 
 
 def judge_models_for(implementer_model, models):
@@ -590,9 +595,10 @@ def do_work(ticket_id, norm, models, budget, workdir):
         if len(files) > max_files:
             errors.append(f"max_files ({max_files}) überschritten")
             break
-        model_name, content = llm_call_any(models, messages, LLM_MAX_TOKENS, LLM_TIMEOUT)
+        model_name, content, call_error = llm_call_any(models, messages, LLM_MAX_TOKENS, LLM_TIMEOUT)
         if content is None:
-            errors.append("kein Modell erreichbar")
+            detail = f": {call_error}" if call_error else ""
+            errors.append(f"kein Modell erreichbar{detail}")
             break
         last_model = model_name
         parsed = extract_json(content)
@@ -721,8 +727,11 @@ def scenario_judge(norm, models, cwd):
         '  { "pass": true|false, "reason": "...", "violations": ["..."] }\\n'
         "Nur pass=true, wenn ALLE Kriterien nachweisbar erfüllt sind."
     )
-    model_name, content = llm_call_any(models, [{"role": "user", "content": prompt}],
+    model_name, content, call_error = llm_call_any(models, [{"role": "user", "content": prompt}],
                                        max_tokens=1024, timeout=LLM_TIMEOUT)
+    if content is None and call_error:
+        return {"pass": False, "reason": "Judge nicht erreichbar: " + call_error[:300],
+                "violations": ["judge-unreachable"], "model": model_name}
     parsed = extract_json(content)
     if parsed is None:
         return {"pass": False, "reason": "Judge antwortete nicht parsebar: " +

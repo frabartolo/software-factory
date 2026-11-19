@@ -269,6 +269,18 @@ def step_implement(deck: Any, card: dict[str, Any], source: str, implementer: tu
     summary = str(work.get("summary") or "").strip()
     if not work.get("ok") or not files:
         reason = summary or "; ".join(str(item) for item in (work.get("errors") or [])) or "kein Arbeitsergebnis"
+        if "kein Modell erreichbar" in reason:
+            url = str(implementer[1].get("url") or "")
+            comment = post_comment(
+                deck,
+                int(card["id"]),
+                f"Implementierer ({implementer[0]}): die Karte bleibt in {source}.\n"
+                f"Begründung: {reason}\n"
+                f"Aufgerufen wurde {url}. flaps prüft die Arbeit und baut sie nicht.\n"
+                "Die Karte bleibt liegen, bis dieser Aufruf gelingt.",
+                dry_run=False,
+            )
+            return _action(card, "implementer", implementer[0], source, source, comment, moved=False)
         move_card(deck, card, "runner", source, blocked, dry_run=False)
         comment = post_comment(
             deck,
