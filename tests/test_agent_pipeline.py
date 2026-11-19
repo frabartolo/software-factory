@@ -92,7 +92,7 @@ class AgentPipelineTest(unittest.TestCase):
         def assess(card, model):
             return {"pass": True, "reason": "Ziel und Abnahme sind konkret.", "findings": []}
 
-        def implement(card, model):
+        def implement(card, model, todos=""):
             return {"ok": True, "files": ["hello.py"], "summary": "hello.py druckt Hallo.", "errors": []}
 
         def critique(card, model, work_comment):
@@ -134,7 +134,7 @@ class AgentPipelineTest(unittest.TestCase):
             deck,
             live_pair(),
             assess=lambda card, model: {"pass": True, "reason": "ok"},
-            implement=lambda card, model: {"ok": True, "files": ["hello.py"], "summary": "x", "errors": []},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["hello.py"], "summary": "x", "errors": []},
             critique=lambda card, model, work: {"pass": True, "reason": "soll nicht laufen", "findings": []},
             card_id=8,
         )
@@ -150,14 +150,14 @@ class AgentPipelineTest(unittest.TestCase):
             deck,
             [("kiara", {"type": "local"})],
             assess=lambda card, model: {"pass": True, "reason": "ok"},
-            implement=lambda card, model: {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
             critique=lambda card, model, work: {"pass": True, "reason": "nein", "findings": []},
             card_id=9,
         )
         self.assertEqual(deck.where(9), stack_name("waiting_review"))
         self.assertIn("nicht erreichbar", actions[0]["comment"])
 
-    def test_failed_review_blocks_instead_of_done(self) -> None:
+    def test_failed_review_returns_to_running(self) -> None:
         deck = MemoryDeck()
         deck.add(stack_name("waiting_review"), {"id": 10, "title": "FACT-017", "description": SPEC, "order": 0})
         deck.add_comment(10, "Implementierer (kiara): Arbeitsergebnis für FACT-017.\nDateien: hello.py\nZusammenfassung: Hallo.")
@@ -165,7 +165,7 @@ class AgentPipelineTest(unittest.TestCase):
             deck,
             live_pair(),
             assess=lambda card, model: {"pass": True, "reason": "ok"},
-            implement=lambda card, model: {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
             critique=lambda card, model, work: {
                 "pass": False,
                 "reason": "Die Abnahme ist nicht erfüllt.",
@@ -173,8 +173,55 @@ class AgentPipelineTest(unittest.TestCase):
             },
             card_id=10,
         )
-        self.assertEqual(deck.where(10), stack_name("blocked"))
-        self.assertIn("nicht bestanden", deck.comments[10][-1])
+        self.assertEqual(deck.where(10), stack_name("running"))
+        self.assertIn("Rückgabe an den Implementierer.", deck.comments[10][-1])
+        self.assertIn("Kein Ausdruck Hallo.", deck.comments[10][-1])
+
+    def test_missing_result_returns_todos_to_implementer(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("waiting_review"), {"id": 13, "title": "FACT-003 — Worktree", "description": SPEC, "order": 0})
+        seen: dict[str, str] = {}
+
+        def implement(card, model, todos=""):
+            seen["todos"] = todos
+            return {"ok": True, "files": ["worktree.py"], "summary": "Worktree angelegt.", "errors": []}
+
+        actions = run_pipeline(
+            deck,
+            live_pair(),
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            implement=implement,
+            critique=lambda card, model, work: {
+                "pass": True,
+                "reason": "Die Datei trägt die Abnahme.",
+                "findings": ["Pfad bleibt erhalten."],
+            },
+            follow=True,
+            card_id=13,
+        )
+        self.assertEqual(deck.where(13), stack_name("approved"))
+        self.assertIn("Ein Arbeitsergebnis fehlt.", seen["todos"])
+        self.assertEqual([item["to"] for item in actions], [
+            stack_name("running"),
+            stack_name("waiting_review"),
+            stack_name("approved"),
+        ])
+
+    def test_third_failure_blocks(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("waiting_review"), {"id": 14, "title": "FACT-020", "description": SPEC, "order": 0})
+        deck.add_comment(14, "Implementierer (kiara): Arbeitsergebnis für FACT-020.\nDateien: hello.py\nZusammenfassung: Hallo.")
+        deck.add_comment(14, "Prüfer (flaps): Rückgabe an den Implementierer.\nOffene Punkte:\n- erste")
+        deck.add_comment(14, "Prüfer (flaps): Rückgabe an den Implementierer.\nOffene Punkte:\n- zweite")
+        run_pipeline(
+            deck,
+            live_pair(),
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
+            critique=lambda card, model, work: {"pass": False, "reason": "weiterhin offen", "findings": ["immer noch falsch"]},
+            card_id=14,
+        )
+        self.assertEqual(deck.where(14), stack_name("blocked"))
 
     def test_dry_run_writes_nothing(self) -> None:
         deck = MemoryDeck()
@@ -183,7 +230,7 @@ class AgentPipelineTest(unittest.TestCase):
             deck,
             live_pair(),
             assess=lambda card, model: {"pass": True, "reason": "ok"},
-            implement=lambda card, model: {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
             critique=lambda card, model, work: {"pass": True, "reason": "ok", "findings": []},
             dry_run=True,
             follow=True,
@@ -199,7 +246,7 @@ class AgentPipelineTest(unittest.TestCase):
             deck,
             live_pair(),
             assess=lambda card, model: {"pass": True, "reason": "soll nicht reichen"},
-            implement=lambda card, model: {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
             critique=lambda card, model, work: {"pass": True, "reason": "ok", "findings": []},
             card_id=12,
         )
