@@ -78,19 +78,29 @@ class DeckClient:
         self._update_card(card, {"description": description})
 
     def list_comments(self, card_id: int) -> list[dict[str, Any]]:
-        payload = self._request("GET", f"/cards/{int(card_id)}/comments")
+        payload = self._request(
+            "GET",
+            f"/cards/{int(card_id)}/comments",
+            prefix=self._ocs_prefix(),
+        )
         if isinstance(payload, list):
             return [item for item in payload if isinstance(item, dict)]
         return []
 
     def add_comment(self, card_id: int, message: str) -> Any:
-        text = message.strip()
+        text = message.strip()[:1000]
         assert_no_secrets(text, "kommentar")
         return self._request(
             "POST",
             f"/cards/{int(card_id)}/comments",
             {"message": text},
+            prefix=self._ocs_prefix(),
         )
+
+    def _ocs_prefix(self) -> str:
+        # Kommentare liegen nicht unter index.php/apps/deck. Dort antwortet
+        # Nextcloud mit HTTP 405. Die OCS-Route ist die gültige.
+        return self.credentials.base_url.rstrip("/") + "/ocs/v2.php/apps/deck/api/v1.0"
 
     def _update_card(self, card: dict[str, Any], changes: dict[str, Any]) -> None:
         stack_id = int(card["stackId"])
@@ -106,7 +116,14 @@ class DeckClient:
         path = f"/boards/{self.board_id}/stacks/{stack_id}/cards/{card_id}"
         self._request("PUT", path, body)
 
-    def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+    def _request(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+        *,
+        prefix: str | None = None,
+    ) -> Any:
         data = None
         headers = {"OCS-APIRequest": "true", "Accept": "application/json"}
         if self.credentials.source == "oauth":
@@ -120,7 +137,7 @@ class DeckClient:
             data = json.dumps(body).encode()
             headers["Content-Type"] = "application/json"
         request = urllib.request.Request(
-            self.prefix + path,
+            (prefix or self.prefix) + path,
             data=data,
             headers=headers,
             method=method,
@@ -141,7 +158,10 @@ class DeckClient:
             ) from exc
         if not raw:
             return None
-        return json.loads(raw.decode())
+        payload = json.loads(raw.decode())
+        if isinstance(payload, dict) and isinstance(payload.get("ocs"), dict):
+            return payload["ocs"].get("data")
+        return payload
 
     def _reachability_message(self, exc: urllib.error.URLError) -> str:
         reason = exc.reason
