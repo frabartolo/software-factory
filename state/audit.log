@@ -39,3 +39,43 @@
 {"ts": "2026-11-17T21:31:32", "ticket": "FACT-013", "station": "gate", "note": "checks-start"}
 {"ts": "2026-11-17T21:32:09", "ticket": "FACT-013", "station": "blocked", "note": "blocked"}
 {"ts": "2026-11-17T21:32:09", "ticket": "FACT-013", "station": "blocked", "note": "finish", "model": "kiara", "files": ["README.md", "scripts/deck_sync.py", "scripts/runner.py", "scripts/validate_factory_schema.py"], "cmd_ok": true}
+{"ts": "2026-11-18T07:59:38", "ticket": "FACT-004", "station": "new", "note": "pick"}
+{"ts": "2026-11-18T07:59:38", "ticket": "FACT-004", "station": "running", "note": "claimed"}
+{"ts": "2026-11-18T07:59:43", "ticket": "FACT-011", "station": "new", "note": "pick"}
+{"ts": "2026-11-18T07:59:43", "ticket": "FACT-011", "station": "running", "note": "claimed"}
+{"ts": "2026-11-18T07:59:49", "ticket": "FACT-012", "station": "new", "note": "pick"}
+{"ts": "2026-11-18T07:59:49", "ticket": "FACT-012", "station": "running", "note": "claimed"}
+{"ts": "2026-11-18T08:34:36", "ticket": "FACT-004", "station": "new", "note": "pick"}
+{"ts": "2026-11-18T08:34:36", "ticket": "FACT-004", "station": "running", "note": "claimed"}
+{"ts": "2026-11-18T08:34:36", "ticket": "FACT-004", "station": "running", "note": "work-start"}
+{"ts": "2026-11-18T08:34:36", "ticket": "FACT-011", "station": "new", "note": "pick"}
+{"ts": "2026-11-18T08:34:36", "ticket": "FACT-011", "station": "running", "note": "claimed"}
+{"ts": "2026-11-18T08:34:36", "ticket": "FACT-011", "station": "running", "note": "work-start"}
+{"ts": "2026-11-18T08:34:36", "ticket": "FACT-012", "station": "new", "note": "pick"}
+{"ts": "2026-11-18T08:34:36", "ticket": "FACT-012", "station": "running", "note": "claimed"}
+{"ts": "2026-11-18T08:34:36", "ticket": "FACT-012", "station": "running", "note": "work-start"}
+{"ts": "2026-11-18T08:44:52", "ticket": "FACT-004", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-18T08:45:03", "ticket": "FACT-004", "station": "blocked", "note": "blocked"}
+{"ts": "2026-11-18T08:45:03", "ticket": "FACT-004", "station": "blocked", "note": "finish", "model": "kiara", "files": ["factory.config.yaml"], "cmd_ok": false}
+{"ts": "2026-11-18T08:46:52", "ticket": "FACT-012", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-18T08:46:52", "ticket": "FACT-012", "station": "blocked", "note": "blocked"}
+{"ts": "2026-11-18T08:46:52", "ticket": "FACT-012", "station": "blocked", "note": "finish", "model": "flaps", "files": [], "cmd_ok": null}
+{"ts": "2026-11-18T09:11:20", "ticket": "FACT-011", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-18T09:11:42", "ticket": "FACT-011", "station": "blocked", "note": "blocked"}
+{"ts": "2026-11-18T09:11:42", "ticket": "FACT-011", "station": "blocked", "note": "finish", "model": "kiara", "files": ["cotrack/__init__.py", "cotrack/model.py", "cotrack/test_model.py", "cotrack/web.py", "factory.py"], "cmd_ok": true}
+{"ts": "2026-11-18T09:27:51", "ticket": "FACT-004", "station": "new", "note": "pick"}
+{"ts": "2026-11-18T09:27:51", "ticket": "FACT-004", "station": "running", "note": "claimed"}
+{"ts": "2026-11-18T09:27:51", "ticket": "FACT-004", "station": "running", "note": "work-start"}
+{"ts": "2026-11-18T09:27:51", "ticket": "FACT-012", "station": "new", "note": "pick"}
+{"ts": "2026-11-18T09:27:51", "ticket": "FACT-012", "station": "running", "note": "claimed"}
+{"ts": "2026-11-18T09:27:51", "ticket": "FACT-012", "station": "running", "note": "work-start"}
+{"ts": "2026-11-18T09:40:37", "ticket": "FACT-004", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-18T09:40:49", "ticket": "FACT-004", "station": "blocked", "note": "blocked"}
+{"ts": "2026-11-18T09:40:49", "ticket": "FACT-004", "station": "blocked", "note": "finish", "model": "kiara", "files": ["factory.config.json"], "cmd_ok": true}
+{"ts": "2026-11-18T09:55:10", "ticket": "FACT-012", "station": "gate", "note": "checks-start"}
+{"ts": "2026-11-18T09:55:29", "ticket": "FACT-012", "station": "blocked", "note": "blocked"}
+{"ts": "2026-11-18T09:55:29", "ticket": "FACT-012", "station": "blocked", "note": "finish", "model": "kiara", "files": ["cotrack/factory.yaml", "cotrack/src/mcp.js", "cotrack/src/worker.js", "cotrack/wrangler.tom"], "cmd_ok": true}
+{"ts": "2026-11-18T20:20:21", "ticket": "FACT-001", "station": "new", "note": "pick"}
+{"ts": "2026-11-18T20:20:21", "ticket": "FACT-001", "station": "running", "note": "claimed"}
+{"ts": "2026-11-18T20:20:21", "ticket": "FACT-003", "station": "new", "note": "pick"}
+{"ts": "2026-11-18T20:20:21", "ticket": "FACT-003", "station": "running", "note": "claimed"}

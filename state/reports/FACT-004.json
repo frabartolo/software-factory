@@ -1,0 +1,52 @@
+{
+  "ticket": "FACT-004",
+  "file": "/home/kiara/software-factory/tickets/blocked/FACT-004.md",
+  "outcome": "blocked",
+  "model": "kiara",
+  "budget": {
+    "max_walltime": 1500,
+    "max_turns": 10,
+    "max_files": 6
+  },
+  "work": {
+    "ok": false,
+    "model": "kiara",
+    "summary": "",
+    "turns": 5,
+    "files": [
+      "factory.config.json"
+    ],
+    "errors": [
+      "Agent-JJSON unlesbar nach 3 Versuchen"
+    ]
+  },
+  "command_checks": [
+    {
+      "cmd": "python3 /home/kiara/software-factory/factory.py check --repo cotrack --dry-run",
+      "ok": true,
+      "exit": 0,
+      "out": "Projekt: cotrack\n  checks: 3\n    1. node --check src/worker.js\n    2. node --check src/mcp.js\n    3. npx wrangler build\n[dry-run] Keine Checks ausgeführt."
+    },
+    {
+      "cmd": "python3 /home/kiara/software-factory/factory.py check --repo cotrack",
+      "ok": true,
+      "exit": 0,
+      "out": "Projekt: cotrack\n  checks: 3\n  OK  node --check src/worker.js\n  OK  node --check src/mcp.js\n  OK  npx wrangler build\n\nErgebnis: 3/3 OK"
+    }
+  ],
+  "scenario_judge": {
+    "pass": false,
+    "reason": "Es wurde nur eine Konfigurationsdatei bereitgestellt. Es fehlt eine nachweisbare Implementierung eines konfigurierbaren Projekt-Check-Wrappers/Runners, der die konfigurierten Befehle ausführt, fehlende Checks explizit meldet und fehlgeschlagene Checks aggregiert statt abzustürzen.",
+    "violations": [
+      "Normal case nicht erfüllt: Es gibt keinen Runner, der nachweislich alle konfigurierten Checks in Reihenfolge ausführt.",
+      "Boundary case nicht erfüllt: Es gibt keine Implementierung, die bei einem Projekt ohne konfigurierte Checks explizit berichtet, dass keine Checks vorhanden sind.",
+      "Failure case nicht erfüllt: Es gibt keine Implementierung, die fehlgeschlagene Check-Befehle aufzeichnet, fortsetzt und eine Zusammenfassung aggregiert."
+    ],
+    "model": "flaps"
+  },
+  "reason": "Check(s) fehlgeschlagen:  | judge: Es wurde nur eine Konfigurationsdatei bereitgestellt. Es feh",
+  "started": "2026-11-18T09:40:49",
+  "finished": "2026-11-18T09:40:49",
+  "dry_run": false,
+  "deck_writeback": true
+}

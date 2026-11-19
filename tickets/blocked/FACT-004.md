@@ -32,11 +32,25 @@ Add a configurable project-check wrapper so the factory can run build/test/lint 
 
 ## Checks
 
-- python3 factory.py check --repo cotrack --dry-run
-- python3 factory.py check --repo cotrack
+- python3 /home/kiara/software-factory/factory.py check --repo cotrack --dry-run
+- python3 /home/kiara/software-factory/factory.py check --repo cotrack
 
 ## Budget
 
 max_walltime: 25m
 max_turns: 10
 max_files: 6
+
+
+## Factory-Result
+- outcome: blocked
+- model: kiara
+- turns: 5
+- files: ['factory.config.json']
+- errors: ['Agent-JJSON unlesbar nach 3 Versuchen']
+- command-checks:
+  - PASS (exit 0): python3 /home/kiara/software-factory/factory.py check --repo cotrack --dry-run
+
+  - PASS (exit 0): python3 /home/kiara/software-factory/factory.py check --repo cotrack
+- scenario-judge: FAIL (model=flaps) — Es wurde nur eine Konfigurationsdatei bereitgestellt. Es fehlt eine nachweisbare Implementierung eines konfigurierbaren Projekt-Check-Wrappers/Runners, der die konfigurierten Befehle ausführt, fehlende Checks explizit meldet und fehlgeschlagene Checks aggregiert statt abzustürzen.
+- note: Check(s) fehlgeschlagen:  | judge: Es wurde nur eine Konfigurationsdatei bereitgestellt. Es feh

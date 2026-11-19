@@ -1,0 +1,56 @@
+{
+  "ticket": "FACT-011",
+  "file": "/home/kiara/software-factory/tickets/blocked/FACT-011.md",
+  "outcome": "blocked",
+  "model": "kiara",
+  "budget": {
+    "max_walltime": 2100,
+    "max_turns": 15,
+    "max_files": 10
+  },
+  "work": {
+    "ok": false,
+    "model": "kiara",
+    "summary": "",
+    "turns": 14,
+    "files": [
+      "cotrack/__init__.py",
+      "cotrack/model.py",
+      "cotrack/test_model.py",
+      "cotrack/web.py",
+      "factory.py"
+    ],
+    "errors": [
+      "walltime (2100s) überschritten"
+    ]
+  },
+  "command_checks": [
+    {
+      "cmd": "python3 factory.py check --repo cotrack --dry-run",
+      "ok": true,
+      "exit": 0,
+      "out": "[dry-run] Checking repo: cotrack\n[dry-run] OK: /home/kiara/software-factory/work/FACT-011/cotrack/__init__.py exists\n[dry-run] OK: /home/kiara/software-factory/work/FACT-011/cotrack/model.py exists\n[dry-run] OK: /home/kiara/software-factory/work/FACT-011/cotrack/web.py exists\n[dry-run] OK: /home/kiara/software-factory/work/FACT-011/cotrack/test_model.py exists\n[dry-run] OK: all Python files compile\n[dry-run] PASSED"
+    },
+    {
+      "cmd": "python3 factory.py check --repo cotrack",
+      "ok": true,
+      "exit": 0,
+      "out": "[check] Running tests for repo: cotrack\n============================= test session starts ==============================\nplatform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0 -- /home/kiara/.hermes/tools/python-3.14.7+20260901-linux-x64/bin/python3\ncachedir: .pytest_cache\nrootdir: /home/kiara/software-factory/work/FACT-011\ncollecting ... collected 21 items\n\ncotrack/test_model.py::TestCanTransition::test_blocked_to_ready PASSED   [  4%]\ncotrack/test_model.py::TestCanTransition::test_done_to_any PASSED        [  9%]\ncotrack/test_model.py::TestCanTransition::test_in_progress_to_review PASSED [ 14%]\ncotrack/test_model.py::TestCanTransition::test_invalid_status PASSED     [ 19%]\ncotrack/test_model.py::TestCanTransition::test_new_to_in_progress PASSED [ 23%]\ncotrack/test_model.py::TestCanTransition::test_new_to_ready PASSED       [ 28%]\ncotrack/test_model.py::TestCanTransition::test_ready_to_in_progress PASSED [ 33%]\ncotrack/test_model.py::TestCanTransition::test_review_to_done PASSED "
+    }
+  ],
+  "scenario_judge": {
+    "pass": false,
+    "reason": "Die Ticket-Detail-Ansicht enthält zwar ein Status-Dropdown, aber die UI-Formularübermittlung ist nicht mit dem Backend kompatibel: Das Formular sendet einen klassischen HTML-Formular-POST (application/x-www-form-urlencoded), während do_POST einen JSON-Body erwartet und sonst 400 'Invalid JSON body' zurückgibt. Damit ist der Normalfall 'new -> ready bleibt nach Refresh erhalten' über die UI nicht nachweisbar erfüllt. Zusätzlich zeigt die UI bei POST-Erfolg/Fehlern nur JSON-Antworten, nicht aber eine konsistente HTML-Fehlerdarstellung; die Persistenzfehlerbehandlung ist im Modell vorhanden, aber die UI zeigt den Fehler nicht als benutzerseitige Fehlermeldung.",
+    "violations": [
+      "Normal case nicht erfüllt: Das Status-Formular in web.py POSTet als Formular, aber do_POST erwartet JSON; ein menschlicher Wechsel von new nach ready über die UI schlägt mit 'Invalid JSON body' fehl.",
+      "UI-Fehlerdarstellung nicht erfüllt: Bei ungültigen Übergängen oder Persistenzfehlern werden JSON-Fehlerobjekte zurückgegeben, aber die Ticket-Detail-UI zeigt keinen sichtbaren HTML-Fehler und behält den vorherigen Zustand nicht als benutzerseitige Fehlermeldung bei.",
+      "HTTP-POST-Handling unvollständig: do_POST liest den Body ohne Content-Length-Auswertung, was bei echten Browser-/HTTP-Clients fehlerhaft oder blockierend sein kann."
+    ],
+    "model": "flaps"
+  },
+  "reason": "Check(s) fehlgeschlagen:  | judge: Die Ticket-Detail-Ansicht enthält zwar ein Status-Dropdown, ",
+  "started": "2026-11-18T09:11:42",
+  "finished": "2026-11-18T09:11:42",
+  "dry_run": false,
+  "deck_writeback": true
+}

@@ -655,10 +655,14 @@ def extract_json(s):
     return None
 
 
-def run_command_checks(norm, cwd, budget):
+def run_command_checks(norm, cwd, budget=0):
     """Führt die ## Checks-Commands aus (unabhängig vom Implementierer)."""
     checks_text = norm.get("checks") or ""
     results = []
+    # Checks validieren das Projekt-Root der Deliverable ("## Cwd", relativ zur
+    # Workdir). Ohne "## Cwd" -> Workdir-Root. Damit die Checks die tatsächlich
+    # implementierte Arbeit prüfen, nicht den Repo-Checkout (local_repo).
+    check_cwd = os.path.normpath(os.path.join(cwd, (norm.get("cwd") or "").strip()))
     for raw in checks_text.splitlines():
         line = raw.strip()
         if not line:
@@ -668,7 +672,7 @@ def run_command_checks(norm, cwd, budget):
         if not line or line.startswith("#"):
             continue
         try:
-            r = subprocess.run(line, shell=True, cwd=cwd, timeout=RUN_TIMEOUT,
+            r = subprocess.run(line, shell=True, cwd=check_cwd, timeout=RUN_TIMEOUT,
                                capture_output=True, text=True)
             results.append({"cmd": line, "ok": r.returncode == 0, "exit": r.returncode,
                             "out": (r.stdout + "\n" + r.stderr).strip()[:1000]})

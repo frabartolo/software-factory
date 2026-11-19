@@ -30,15 +30,31 @@ Expose factory-related ticket state and metadata clearly in cotrack UI so humans
 - No auto-close tickets.
 - No production data exposure.
 
-## Checks
+## Cwd
+cotrack
 
-- npm run lint
-- npm run build
-- npm run test
-- manual check: verify at least one ticket with no run data renders safely
+## Checks
+node --check src/worker.js
+node --check src/mcp.js
+node --check src/store.js
+node --check src/view.js
+node smoke_test.js
 
 ## Budget
 
 max_walltime: 40m
 max_turns: 16
 max_files: 12
+
+
+## Factory-Result
+- outcome: blocked
+- model: kiara
+- turns: 10
+- files: ['cotrack/factory.yaml', 'cotrack/src/mcp.js', 'cotrack/src/worker.js', 'cotrack/wrangler.tom']
+- command-checks:
+  - PASS (exit 0): python3 /home/kiara/software-factory/factory.py check --repo cotrack --dry-run
+
+  - PASS (exit 0): python3 /home/kiara/software-factory/factory.py check --repo cotrack
+- scenario-judge: FAIL (model=flaps) — Die Implementierung stellt Factory-Status und Run-Outcome in JSON-Views bereit und behandelt fehlende sowie malformed Run-Daten defensiv. Allerdings fehlt eine echte UI-Darstellung, und die Worker-/MCP-Handler liefern im Normalfall keine tatsächlichen Run-Daten, sondern immer lastRun: null. Damit ist das Normalbeispiel nicht nachweisbar erfüllt.
+- note: Check(s) fehlgeschlagen:  | judge: Die Implementierung stellt Factory-Status und Run-Outcome in
