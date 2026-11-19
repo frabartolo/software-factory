@@ -225,7 +225,7 @@ class AgentPipelineTest(unittest.TestCase):
         )
         self.assertEqual(deck.where(15), stack_name("running"))
         self.assertIn("127.0.0.1:8080", deck.comments[15][-1])
-        self.assertIn("flaps prüft", deck.comments[15][-1])
+        self.assertIn("Ein anderes Modell prüft", deck.comments[15][-1])
 
     def test_third_failure_blocks(self) -> None:
         deck = MemoryDeck()
@@ -272,6 +272,55 @@ class AgentPipelineTest(unittest.TestCase):
         )
         self.assertEqual(deck.where(12), stack_name("backlog"))
         self.assertIn("Pflichtabschnitt fehlt", deck.comments[12][0])
+
+    def test_hathi_reviews_when_flaps_is_absent(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("waiting_review"), {"id": 16, "title": "FACT-021", "description": SPEC, "order": 0})
+        deck.add_comment(16, "Implementierer (kiara): Arbeitsergebnis für FACT-021.\nDateien: hello.py\nZusammenfassung: Hallo.")
+        actions = run_pipeline(
+            deck,
+            [("kiara", {"type": "local"}), ("hathi", {"type": "local", "model": "swift-1.5-iq2_xs"})],
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["hello.py"], "summary": "x", "errors": []},
+            critique=lambda card, model, work: {"pass": True, "reason": "Die Datei trägt die Abnahme.", "findings": []},
+            card_id=16,
+        )
+        self.assertEqual(actions[0]["model"], "hathi")
+        self.assertEqual(deck.where(16), stack_name("approved"))
+        self.assertIn("Prüfer (hathi)", deck.comments[16][-1])
+
+    def test_hathi_implements_when_kiara_is_absent(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("ready"), {"id": 17, "title": "FACT-022", "description": SPEC, "order": 0})
+        actions = run_pipeline(
+            deck,
+            [("flaps", {"type": "local"}), ("hathi", {"type": "local", "model": "swift-1.5-iq2_xs"})],
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["hello.py"], "summary": "von hathi", "errors": []},
+            critique=lambda card, model, work: {"pass": True, "reason": "ok", "findings": []},
+            follow=True,
+            card_id=17,
+        )
+        self.assertEqual([item["model"] for item in actions], ["hathi", "flaps"])
+        self.assertEqual(deck.where(17), stack_name("approved"))
+
+    def test_hathi_stays_unused_when_kiara_and_flaps_answer(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("ready"), {"id": 18, "title": "FACT-023", "description": SPEC, "order": 0})
+        actions = run_pipeline(
+            deck,
+            [
+                ("kiara", {"type": "local"}),
+                ("flaps", {"type": "local"}),
+                ("hathi", {"type": "local", "model": "swift-1.5-iq2_xs"}),
+            ],
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["hello.py"], "summary": "x", "errors": []},
+            critique=lambda card, model, work: {"pass": True, "reason": "ok", "findings": []},
+            card_id=18,
+        )
+        self.assertEqual(actions[0]["model"], "kiara")
+        self.assertNotIn("hathi", [item["model"] for item in actions])
 
     def test_roles_keep_done_closed(self) -> None:
         with self.assertRaises(PolicyError):

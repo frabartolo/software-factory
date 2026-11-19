@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Führt Deck-Karten mit getrennten Agenten von Neu bis Approved.
 
-Intake und Prüfer sind flaps, der Implementierer ist kiara. Der Prüfer muss
-ein anderes Modell sein als der Implementierer. Done setzt diese Pipeline nie.
+Intake und Prüfer sind flaps, der Implementierer ist kiara. hathi springt nur
+ein, wenn das bevorzugte Modell dieses Laufs fehlt. Der Prüfer muss ein
+anderes Modell sein als der Implementierer. Done setzt diese Pipeline nie.
 Jedes Urteil landet als Kommentar auf der Karte.
 """
 
@@ -32,22 +33,31 @@ Implement = Callable[[dict[str, Any], tuple[str, dict[str, Any]], str], dict[str
 Critique = Callable[[dict[str, Any], tuple[str, dict[str, Any]], str], dict[str, Any]]
 
 
-def agent_names() -> tuple[str, str, str]:
+def agent_names() -> tuple[str, str, str, str | None]:
     agents = factory_config().get("agents") or {}
     implementer = str(agents.get("implementer") or "kiara")
     reviewer = str(agents.get("reviewer") or "flaps")
     intake = str(agents.get("intake") or reviewer)
-    return implementer, intake, reviewer
+    substitute = str(agents.get("substitute") or "").strip() or None
+    return implementer, intake, reviewer, substitute
 
 
 def assign_models(
     live: list[tuple[str, dict[str, Any]]],
 ) -> tuple[tuple[str, dict[str, Any]] | None, tuple[str, dict[str, Any]] | None, tuple[str, dict[str, Any]] | None]:
     by = {name: (name, cfg) for name, cfg in live}
-    implementer_name, intake_name, reviewer_name = agent_names()
+    implementer_name, intake_name, reviewer_name, substitute_name = agent_names()
     implementer = by.get(implementer_name)
     intake = by.get(intake_name)
     reviewer = by.get(reviewer_name)
+    substitute = by.get(substitute_name) if substitute_name else None
+    if implementer is None and substitute is not None:
+        implementer = substitute
+    if substitute is not None and (implementer is None or substitute[0] != implementer[0]):
+        if reviewer is None:
+            reviewer = substitute
+        if intake is None:
+            intake = substitute
     if implementer and reviewer and reviewer[0] == implementer[0]:
         reviewer = None
     if implementer and intake and intake[0] == implementer[0]:
@@ -276,7 +286,7 @@ def step_implement(deck: Any, card: dict[str, Any], source: str, implementer: tu
                 int(card["id"]),
                 f"Implementierer ({implementer[0]}): die Karte bleibt in {source}.\n"
                 f"Begründung: {reason}\n"
-                f"Aufgerufen wurde {url}. flaps prüft die Arbeit und baut sie nicht.\n"
+                f"Aufgerufen wurde {url}. Ein anderes Modell prüft die Arbeit und baut sie nicht.\n"
                 "Die Karte bleibt liegen, bis dieser Aufruf gelingt.",
                 dry_run=False,
             )

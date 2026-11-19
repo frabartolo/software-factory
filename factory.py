@@ -305,6 +305,8 @@ def cmd_route_test(args: argparse.Namespace) -> int:
     if "flaps" in routing:
         print(f"  flaps  = review_verification")
         print(f"  fallback bei Ausfall: {routing.get('flaps', {}).get('on_unavailable', [])}")
+    if "hathi" in routing:
+        print(f"  hathi  = occasional ({models.get('hathi_model', 'n/a')})")
     print("[OK]")
     return 0
 
@@ -326,6 +328,7 @@ def cmd_pilot_report(args: argparse.Namespace) -> int:
     lines.append("## Modelle")
     lines.append(f"- kiara (default): {cfg['models'].get('worker_model', 'n/a')}")
     lines.append(f"- flaps (review): {cfg['models'].get('flaps_model', 'n/a')}")
+    lines.append(f"- hathi (gelegentlich): {cfg['models'].get('hathi_model', 'n/a')}")
     lines.append("")
     lines.append("## Engine")
     worker = cfg.get("worker", {})
