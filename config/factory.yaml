@@ -66,8 +66,14 @@ limits:
   max_turns: 15
   max_files: 10
 
+agents:
+  implementer: kiara
+  intake: flaps
+  reviewer: flaps
+
 gate:
   auto_merge: false
+  # Done bleibt beim Menschen. Approved spricht der unabhängige Prüfer aus.
   require_human_approval: true
   named_approver_required: true
   zero_gate_escape: true

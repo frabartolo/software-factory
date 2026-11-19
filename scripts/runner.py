@@ -532,7 +532,7 @@ def execute_tool(tool, a, cwd, files):
             return "leeres Kommando", "run"
         blocked = [r"rm\s+-r\s", r"\bshred\b", r"\bmkfs\b", r"\bwipefs\b",
                    r"\bformat\b", r"\bsudo\b", r"\bmkfifo\b", r"\btruncate\b",
-                   r"\bmkfifo\b", r"\bblkid\b"]
+                   r"\bmkfifo\b", r"\bblkid\b", r"\bgit\s+push\b", r"\bgit\s+merge\b"]
         if any(re.search(p, cmd, re.I) for p in blocked):
             return "blockiert: " + cmd[:200], "run-blocked"
         try:
@@ -670,6 +670,9 @@ def run_command_checks(norm, cwd, budget=0):
         line = re.sub(r"^\s*[-*]\s*", "", line).strip()
         line = re.sub(r"^\s*\d+\.\s*", "", line).strip()
         if not line or line.startswith("#"):
+            continue
+        if re.search(r"(?i)\bgit\s+(push|merge)\b", line):
+            results.append({"cmd": line, "ok": False, "exit": -1, "out": "blockiert"})
             continue
         try:
             r = subprocess.run(line, shell=True, cwd=check_cwd, timeout=RUN_TIMEOUT,
@@ -815,6 +818,20 @@ def process_ticket(path, args):
         norm = parse_ticket(text)
         ticket_id = current.stem
         print(f"[runner] pick: {ticket_id} ({current.parent.name})")
+        budget = parse_budget(norm.get("budget", ""))
+        models = choose_models(norm)
+        if args.dry_run:
+            print(f"[dry-run] Modell-Reihenfolge: "
+                  + (", ".join(m[0] for m in models) or "KEINE erreichbar"))
+            print(f"[dry-run] workdir: {WORK_ROOT / ticket_id}")
+            print("[dry-run] Checks:")
+            for line in (norm.get("checks") or "").splitlines():
+                l = re.sub(r"^\s*[-*]\s*", "", line.strip()).strip()
+                if l:
+                    print(f"[dry-run]   - {l}")
+            print("[dry-run] keine Aktionen ausgeführt (dry-run)")
+            return {"ticket": ticket_id, "ok": True, "dry_run": True,
+                    "models": [m[0] for m in models]}
         audit(ticket_id, "new", "pick")
         # --- CLAIM (atomar new->running, verhindert doppelte Verarbeitung) ---
         current = shift_ticket(current, "running", ticket_id, "claimed")
@@ -829,20 +846,6 @@ def process_ticket(path, args):
                                      "started": datetime.now().isoformat(),
                                      "finished": datetime.now().isoformat()})
             return {"ticket": ticket_id, "ok": False, "stage": "validation", "error": msg}
-        budget = parse_budget(norm.get("budget", ""))
-        models = choose_models(norm)
-        if args.dry_run:
-            print(f"[dry-run] Modell-Reihenfolge: "
-                  + (", ".join(m[0] for m in models) or "KEINE erreichbar"))
-            print(f"[dry-run] workdir: {WORK_ROOT / ticket_id}")
-            print("[dry-run] Checks:")
-            for line in (norm.get("checks") or "").splitlines():
-                l = re.sub(r"^\s*[-*]\s*", "", line.strip()).strip()
-                if l:
-                    print(f"[dry-run]   - {l}")
-            print("[dry-run] keine Aktionen ausgeführt (dry-run)")
-            return {"ticket": ticket_id, "ok": False, "dry_run": True,
-                    "models": [m[0] for m in models]}
         if not models:
             print("[runner] BLOCKED: kein Modell erreichbar (kiara/flaps)")
             current = shift_ticket(current, "blocked", ticket_id, "no-model")
@@ -859,8 +862,7 @@ def process_ticket(path, args):
         print(f"[runner] work fertig: model={work.get('model')} "
               f"turns={work.get('turns')} files={work.get('files')} "
               f"summary={work.get('summary')[:60]}")
-        # --- GATE (unabhängige Checks) ---
-        current = shift_ticket(current, "gate", ticket_id, "checks-start")
+        # --- GATE (Checks, solange die Datei noch in running liegt) ---
         files = work.get("files") or []
         if not files:
             final_ok = False
@@ -877,13 +879,12 @@ def process_ticket(path, args):
                   f"(pass={all(c.get('ok') for c in cmd_checks) if cmd_checks else 'n/a'}), "
                   f"scenario={scenario.get('pass') if scenario else '?'}")
         # --- Ergebnis ---
-        outcome = "approved" if final_ok else "blocked"
+        outcome = "gate" if final_ok else "blocked"
         if final_ok:
-            append_result_section(current, "approved", work, cmd_checks, scenario)
-            # Review-Station: nach grünen Checks in approved stoppen;
-            # Done erst nach namentlicher menschlicher Freigabe (FACT-013).
-            current = shift_ticket(current, "approved", ticket_id, "approved")
-            outcome = "approved"
+            append_result_section(current, "waiting-review", work, cmd_checks, scenario)
+            # Approved spricht nur der unabhängige Prüfer in agent_pipeline.py aus.
+            current = shift_ticket(current, "gate", ticket_id, "waiting-review")
+            outcome = "gate"
         else:
             extra = reason or ""
             if not reason:
@@ -966,10 +967,12 @@ def main(argv=None):
         except Exception as e:
             results.append({"ticket": Path(t).stem, "ok": False,
                             "stage": "exception", "error": str(e)})
-    ok_count = sum(1 for r in results if r.get("ok"))
+    planned = sum(1 for r in results if r.get("dry_run"))
+    ok_count = sum(1 for r in results if r.get("ok") and not r.get("dry_run"))
+    failed = len(results) - ok_count - planned
     print(f"[runner] FERTIG: {len(results)} Tickets, "
-          f"{ok_count} done/pass, {len(results) - ok_count} failed/blocked")
-    return 0 if ok_count == len(results) else 1
+          f"{ok_count} done/pass, {planned} geplant, {failed} failed/blocked")
+    return 0 if failed == 0 else 1
 
 
 if __name__ == "__main__":
