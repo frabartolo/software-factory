@@ -10,7 +10,7 @@ Eine Karte startet in Backlog / Neu und läuft durch getrennte Agenten bis Appro
 2. Der Implementierer nimmt sie aus Ready, setzt sie auf Running / In Arbeit und liefert das Arbeitsergebnis.
 3. Danach liegt die Karte in Waiting Review / Gate.
 4. Der Prüfer urteilt kritisch. Bei Bestand geht die Karte nach Approved / Freigegeben. Offene Punkte schreibt er als Kommentar und gibt die Karte zurück nach Running / In Arbeit.
-5. Der Implementierer liest diese Punkte zusammen mit dem Auftrag, setzt sie um und schreibt ein neues Arbeitsergebnis. Danach prüft flaps erneut.
+5. Der Implementierer liest diese Punkte zusammen mit dem Auftrag, setzt sie um und schreibt ein neues Arbeitsergebnis. Danach prüft der Prüfer erneut.
 6. Nach zwei Rückgaben ohne bestandenes Ergebnis geht die Karte nach Blocked / Failed.
 7. Done / Erledigt setzt nur ein Mensch, mit Namen, und erst nachdem der Commit auf `main` liegt.
 
@@ -22,21 +22,23 @@ Die drei Agenten sind getrennte Rollen. Prüfer und Implementierer sind zwei Mod
 
 | Rolle | Modell, wenn erreichbar | Darf |
 |---|---|---|
-| Intake | flaps | Backlog / Neu nach Ready / Bereit oder in Neu lassen |
-| Implementierer | kiara | Ready / Bereit nach Running / In Arbeit und weiter nach Waiting Review / Gate |
-| Prüfer | flaps | Waiting Review / Gate nach Approved / Freigegeben, zurück nach Running / In Arbeit, oder nach zwei Rückgaben nach Blocked / Failed |
+| Intake | flaps, sonst hathi | Backlog / Neu nach Ready / Bereit oder in Neu lassen |
+| Implementierer | kiara, sonst hathi | Ready / Bereit nach Running / In Arbeit und weiter nach Waiting Review / Gate |
+| Prüfer | flaps, sonst hathi | Waiting Review / Gate nach Approved / Freigegeben, zurück nach Running / In Arbeit, oder nach zwei Rückgaben nach Blocked / Failed |
 | Mensch | — | Approved / Freigegeben nach Done / Erledigt |
 
-Intake und Prüfer entfallen für diesen Lauf, wenn flaps nicht erreichbar ist oder dasselbe Modell wäre wie der Implementierer. kiara prüft dann die eigene Arbeit nicht und rückt die Karte nicht nach Approved.
+hathi (`swift-1.5-iq2_xs` auf `http://hathi:8080/v1`, Ersatzadresse `http://192.168.5.26:8080/v1`) ist der gelegentliche Ersatz. Es übernimmt eine Rolle nur, wenn das bevorzugte Modell in diesem Lauf nicht antwortet. Sind kiara und flaps beide erreichbar, bleibt hathi ungenutzt. Ein Modell gibt die eigene Arbeit nicht frei. Fehlen flaps und hathi, bleibt die Karte in Neu oder in Review.
 
 Ein unvollständiger Auftrag bleibt in Backlog / Neu. Fehlt das Arbeitsergebnis oder fällt die Prüfung durch, geht die Karte mit den offenen Punkten zurück nach Running / In Arbeit. Der Implementierer arbeitet diese Punkte ab. Done entsteht daraus nicht.
 
 ## Wirkung der Modellprüfung
 
-`scripts/model_health.py` stellt fest, ob kiara und flaps antworten. Das Ergebnis bestimmt die Besetzung des Laufs.
+`scripts/model_health.py` stellt fest, ob kiara, flaps und hathi antworten. Die Pipeline besetzt den Lauf nach derselben Erreichbarkeit.
 
-- flaps erreichbar: flaps wird Intake und Prüfer, kiara bleibt Implementierer. Kommentar und Audit nennen beide Rollen und den Endpunkt.
-- flaps nicht erreichbar: flaps kommt in diesem Lauf nicht vor. Die Karte bleibt in Neu oder in Review, mit dem Grund aus der Prüfung. Es gibt kein stilles Weiterlaufen und kein Done.
+- flaps erreichbar: flaps wird Intake und Prüfer, kiara bleibt Implementierer.
+- flaps nicht erreichbar und hathi erreichbar: hathi wird Intake und Prüfer, kiara bleibt Implementierer.
+- kiara nicht erreichbar und hathi erreichbar: hathi wird Implementierer, flaps bleibt Prüfer.
+- flaps und hathi nicht erreichbar: die Karte bleibt in Neu oder in Review, mit dem Grund aus der Prüfung. Es gibt kein stilles Weiterlaufen und kein Done.
 
 `factory.py route-test` allein reicht dafür nicht. Der Lauf muss die Rollen aus der Prüfung setzen.
 

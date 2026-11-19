@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prüft die OpenAI-kompatiblen Endpunkte von kiara und flaps."""
+"""Prüft die OpenAI-kompatiblen Endpunkte von kiara, flaps und hathi."""
 
 from __future__ import annotations
 
@@ -160,7 +160,7 @@ def ping(base: str, model: str, max_tokens: int) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Modell-Endpunkte von kiara und flaps prüfen")
+    parser = argparse.ArgumentParser(description="Modell-Endpunkte von kiara, flaps und hathi prüfen")
     parser.add_argument(
         "--ping",
         action="store_true",
@@ -176,7 +176,9 @@ def main(argv: list[str] | None = None) -> int:
 
     ok = True
     reached: dict[str, str] = {}
-    for name in ("kiara", "flaps"):
+    order = [name for name in ("kiara", "flaps", "hathi") if name in routing]
+    order.extend(name for name in routing if name not in order)
+    for name in order:
         route = routing.get(name)
         if not route:
             continue
@@ -190,8 +192,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.ping and reached:
         models = config.get("models") or {}
-        target = "kiara" if "kiara" in reached else "flaps"
-        model = models.get("worker_model") if target == "kiara" else models.get("flaps_model")
+        target = next(name for name in ("kiara", "flaps", "hathi") if name in reached)
+        model_key = {"kiara": "worker_model", "flaps": "flaps_model", "hathi": "hathi_model"}[target]
+        model = models.get(model_key)
         try:
             print(f"{target} ping: " + ping(reached[target], str(model), args.max_tokens))
         except FactoryError as exc:

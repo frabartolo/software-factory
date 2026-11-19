@@ -83,6 +83,7 @@ DECK_ENV = os.path.join(CONFIG_BASE, "deck-auth.env")
 MODELS = [
     {"type": "local", "name": "kiara", "url": "http://127.0.0.1:8080/v1", "model": "bonsai2-27b"},
     {"type": "local", "name": "flaps", "url": "http://192.168.5.20:8080/v1", "model": "strata"},
+    {"type": "local", "name": "hathi", "url": "http://192.168.5.26:8080/v1", "model": "swift-1.5-iq2_xs"},
 ]
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
@@ -856,7 +857,7 @@ def process_ticket(path, args):
                                      "finished": datetime.now().isoformat()})
             return {"ticket": ticket_id, "ok": False, "stage": "validation", "error": msg}
         if not models:
-            print("[runner] BLOCKED: kein Modell erreichbar (kiara/flaps)")
+            print("[runner] BLOCKED: kein Modell erreichbar (kiara/flaps/hathi)")
             current = shift_ticket(current, "blocked", ticket_id, "no-model")
             write_report(ticket_id, {"ticket": ticket_id, "file": str(current),
                                      "outcome": "blocked", "stage": "no-model",

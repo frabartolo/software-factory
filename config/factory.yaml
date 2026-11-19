@@ -34,6 +34,9 @@ models:
   flaps_endpoint: http://flaps:8080/v1
   flaps_endpoint_fallback: http://192.168.5.20:8080/v1
   flaps_model: qwen3.8-flash-next-iq3_s
+  hathi_endpoint: http://hathi:8080/v1
+  hathi_endpoint_fallback: http://192.168.5.26:8080/v1
+  hathi_model: swift-1.5-iq2_xs
   # flaps kann die Antwort in reasoning_content statt content legen.
   response_fields:
     - content
@@ -58,6 +61,13 @@ routing:
       - decompose_for_kiara
       - queue_for_next_window
       - escalate_human_with_spec
+  hathi:
+    role: occasional
+    health:
+      endpoints:
+        - http://hathi:8080/v1/models
+        - http://192.168.5.26:8080/v1/models
+      required: false
 
 limits:
   queue_depth: 2
@@ -70,6 +80,8 @@ agents:
   implementer: kiara
   intake: flaps
   reviewer: flaps
+  # hathi füllt nur eine Rolle, deren bevorzugtes Modell in diesem Lauf fehlt.
+  substitute: hathi
 
 gate:
   auto_merge: false
