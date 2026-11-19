@@ -207,6 +207,26 @@ class AgentPipelineTest(unittest.TestCase):
             stack_name("approved"),
         ])
 
+    def test_unreachable_implementer_stays_in_running(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("running"), {"id": 15, "title": "FACT-003 — Worktree", "description": SPEC, "order": 0})
+        run_pipeline(
+            deck,
+            live_pair(),
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            implement=lambda card, model, todos="": {
+                "ok": False,
+                "files": [],
+                "summary": "",
+                "errors": ["kein Modell erreichbar: kiara http://127.0.0.1:8080/v1: timed out"],
+            },
+            critique=lambda card, model, work: {"pass": True, "reason": "ok", "findings": []},
+            card_id=15,
+        )
+        self.assertEqual(deck.where(15), stack_name("running"))
+        self.assertIn("127.0.0.1:8080", deck.comments[15][-1])
+        self.assertIn("flaps prüft", deck.comments[15][-1])
+
     def test_third_failure_blocks(self) -> None:
         deck = MemoryDeck()
         deck.add(stack_name("waiting_review"), {"id": 14, "title": "FACT-020", "description": SPEC, "order": 0})
