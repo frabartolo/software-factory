@@ -72,9 +72,9 @@ routing:
 limits:
   queue_depth: 2
   poll_seconds: 30
-  max_walltime_minutes: 30
-  max_turns: 15
-  max_files: 10
+  max_walltime_minutes: 90   # Budget raised: kiara is local, no per-call cost
+  max_turns: 40              # Budget raised: was 15
+  max_files: 30              # Budget raised: was 10
 
 agents:
   implementer: kiara

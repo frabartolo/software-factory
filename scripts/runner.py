@@ -63,6 +63,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+from factory_common import factory_config
 
 # --- Pfade -----------------------------------------------------------------
 FACTORY_DIR = Path(__file__).resolve().parent.parent
@@ -362,6 +363,18 @@ def parse_budget(budget_text: str) -> dict:
         elif k == "max_turns":
             try: b[k] = int(val)
             except Exception: pass
+    # Factory limits are a FLOOR for the effective budget: they can only raise
+    # (never lower) a ticket's Budget. This guarantees kiara gets the raised
+    # global budget even when a ticket carries a smaller Budget section
+    # (e.g. a low max_turns). Always reversible via config/factory.yaml.
+    try:
+        lim = factory_config()["limits"]
+        b["max_walltime"] = max(b["max_walltime"],
+                                int(lim.get("max_walltime_minutes", 0)) * 60)
+        b["max_turns"] = max(b["max_turns"], int(lim.get("max_turns", 0)))
+        b["max_files"] = max(b["max_files"], int(lim.get("max_files", 0)))
+    except Exception:
+        pass
     return b
 
 
