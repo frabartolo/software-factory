@@ -84,6 +84,8 @@ policies:
       - from: "Waiting Review / Gate"
         to: "Approved / Freigegeben"
       - from: "Waiting Review / Gate"
+        to: "Running / In Arbeit"
+      - from: "Waiting Review / Gate"
         to: "Blocked / Failed"
     forbidden_transitions:
       - from: "Waiting Review / Gate"

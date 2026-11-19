@@ -28,7 +28,7 @@ from factory_common import (
 from validate_ticket import parse_ticket
 
 Assess = Callable[[dict[str, Any], tuple[str, dict[str, Any]]], dict[str, Any]]
-Implement = Callable[[dict[str, Any], tuple[str, dict[str, Any]]], dict[str, Any]]
+Implement = Callable[[dict[str, Any], tuple[str, dict[str, Any]], str], dict[str, Any]]
 Critique = Callable[[dict[str, Any], tuple[str, dict[str, Any]], str], dict[str, Any]]
 
 
@@ -66,6 +66,34 @@ def ticket_label(card: dict[str, Any]) -> str:
 def spec_errors(text: str) -> list[str]:
     _ticket, errors = parse_ticket(text)
     return errors
+
+
+MAX_RETURNS = 2
+RETURN_MARK = "Rückgabe an den Implementierer."
+
+
+def return_count(comments: list[dict[str, Any]]) -> int:
+    return sum(1 for item in comments if RETURN_MARK in str(item.get("message") or ""))
+
+
+def latest_return(comments: list[dict[str, Any]]) -> str:
+    for item in reversed(comments):
+        message = str(item.get("message") or "")
+        if RETURN_MARK in message:
+            return message
+    return ""
+
+
+def return_comment(model: str, points: list[str]) -> str:
+    lines = [f"Prüfer ({model}): {RETURN_MARK}", "Offene Punkte:"]
+    for point in points:
+        lines.append(f"- {point}")
+    lines.append(
+        "Die Karte liegt wieder in Running / In Arbeit. "
+        "Der Implementierer setzt diese Punkte um und schreibt danach einen Kommentar "
+        "mit Dateien und Zusammenfassung, der mit „Implementierer („ beginnt."
+    )
+    return "\n".join(lines)
 
 
 def implementer_name_from_comments(comments: list[dict[str, Any]]) -> str | None:
@@ -219,19 +247,22 @@ def step_implement(deck: Any, card: dict[str, Any], source: str, implementer: tu
         )
         return _action(card, "implementer", None, source, source, comment, moved=False)
     if dry_run:
+        todos = latest_return(deck.list_comments(int(card["id"])))
+        hint = " Die offenen Punkte aus der Rückgabe würden mit umgesetzt." if todos else ""
         comment = post_comment(
             deck,
             int(card["id"]),
             f"Implementierer ({implementer[0]}): Dry-run, die Karte würde nach {review} gehen. "
-            "Der Prüfer ist ein anderes Modell.",
+            f"Der Prüfer ist ein anderes Modell.{hint}",
             dry_run=True,
         )
         return _action(card, "implementer", implementer[0], source, source, comment, moved=False)
     if source == stack_name("ready"):
         move_card(deck, card, "runner", source, running, dry_run=False)
         source = running
+    todos = latest_return(deck.list_comments(int(card["id"])))
     try:
-        work = implement(card, implementer)
+        work = implement(card, implementer, todos)
     except Exception as exc:
         work = {"ok": False, "files": [], "summary": str(exc), "errors": [str(exc)]}
     files = [str(item) for item in (work.get("files") or [])]
@@ -277,14 +308,18 @@ def step_review(deck: Any, card: dict[str, Any], reviewer: tuple[str, dict[str, 
         )
         return _action(card, "reviewer", None, source, source, comment, moved=False)
     if built_by is None:
-        comment = post_comment(
+        return _send_back(
             deck,
-            int(card["id"]),
-            "Prüfer: Die Karte bleibt in Waiting Review / Gate.\n"
-            "Begründung: Im Kommentar fehlt das Arbeitsergebnis des Implementierers.",
+            card,
+            reviewer,
+            comments,
+            [
+                "Ein Arbeitsergebnis fehlt.",
+                "Setze den Auftrag aus der Kartenbeschreibung um.",
+                "Schreibe danach einen Kommentar mit den erzeugten Dateien und einer Zusammenfassung.",
+            ],
             dry_run=dry_run,
         )
-        return _action(card, "reviewer", reviewer[0], source, source, comment, moved=False)
     if built_by == reviewer[0]:
         comment = post_comment(
             deck,
@@ -315,20 +350,50 @@ def step_review(deck: Any, card: dict[str, Any], reviewer: tuple[str, dict[str, 
     if bool(verdict.get("pass")) and not reason:
         reason = "Prüfer hat kein Urteil begründet."
         passed = False
-    target = stack_name("approved") if passed else stack_name("blocked")
-    role = "reviewer"
-    move_card(deck, card, role, source, target, dry_run=False)
+    if not passed:
+        points = findings or [reason]
+        return _send_back(deck, card, reviewer, comments, points, dry_run=False)
+    target = stack_name("approved")
+    move_card(deck, card, "reviewer", source, target, dry_run=False)
     finding_lines = "\n".join(f"- {item}" for item in findings) if findings else "- (keine einzelnen Befunde)"
     comment = post_comment(
         deck,
         int(card["id"]),
-        f"Prüfer ({reviewer[0]}): kritisches Urteil: {'bestanden' if passed else 'nicht bestanden'}.\n"
+        f"Prüfer ({reviewer[0]}): kritisches Urteil: bestanden.\n"
         f"Geprüft wurde die Arbeit von {built_by}.\n"
         f"Begründung: {reason}\n"
         f"Befunde:\n{finding_lines}\n"
         f"Nächste Spalte: {target}. Done setzt nur ein Mensch.",
         dry_run=False,
     )
+    return _action(card, "reviewer", reviewer[0], source, target, comment, moved=True)
+
+
+def _send_back(
+    deck: Any,
+    card: dict[str, Any],
+    reviewer: tuple[str, dict[str, Any]],
+    comments: list[dict[str, Any]],
+    points: list[str],
+    *,
+    dry_run: bool,
+) -> dict[str, Any]:
+    source = stack_name("waiting_review")
+    if return_count(comments) >= MAX_RETURNS:
+        target = stack_name("blocked")
+        text = (
+            f"Prüfer ({reviewer[0]}): Die Karte geht nach {target}.\n"
+            f"Begründung: Nach {MAX_RETURNS} Rückgaben liegt noch kein bestandenes Arbeitsergebnis vor.\n"
+            "Done setzt nur ein Mensch."
+        )
+    else:
+        target = stack_name("running")
+        text = return_comment(reviewer[0], points)
+    if dry_run:
+        comment = post_comment(deck, int(card["id"]), text, dry_run=True)
+        return _action(card, "reviewer", reviewer[0], source, target, comment, moved=False)
+    move_card(deck, card, "reviewer", source, target, dry_run=False)
+    comment = post_comment(deck, int(card["id"]), text, dry_run=False)
     return _action(card, "reviewer", reviewer[0], source, target, comment, moved=True)
 
 
@@ -405,11 +470,14 @@ def default_assess(card: dict[str, Any], model: tuple[str, dict[str, Any]]) -> d
     return _json_verdict(text)
 
 
-def default_implement(card: dict[str, Any], model: tuple[str, dict[str, Any]]) -> dict[str, Any]:
+def default_implement(card: dict[str, Any], model: tuple[str, dict[str, Any]], todos: str = "") -> dict[str, Any]:
     import runner
 
     description = str(card.get("description") or "")
     norm = runner.parse_ticket(description)
+    if todos.strip():
+        goal = str(norm.get("goal") or "")
+        norm["goal"] = goal + "\n\nOFFENE PUNKTE AUS DER PRÜFUNG:\n" + todos.strip()
     ticket_id = ticket_label(card)
     workdir = Path(__file__).resolve().parent.parent / "work" / ticket_id
     budget = runner.parse_budget(norm.get("budget", ""))
