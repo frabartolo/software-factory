@@ -95,7 +95,7 @@ DEFAULT_WALLTIME = 1800  # 30 min, falls Ticket nichts angibt
 DEFAULT_TURNS = 20
 DEFAULT_FILES = 15
 LLM_MAX_TOKENS = 3072
-LLM_TIMEOUT = 240        # pro LLM-Call (s)
+LLM_TIMEOUT = 400        # pro LLM-Call (s)
 RUN_TIMEOUT = 60         # pro Check-Subprozess (s)
 
 # --- Deck-Station -> mögliche Stack-Titel (substring-match) -----------------
