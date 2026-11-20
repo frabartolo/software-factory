@@ -6,10 +6,10 @@ Stand 19. November 2026. Das Board ist „Software-Factory“, Id 7, auf Nextclo
 
 Eine Karte startet in Backlog / Neu und läuft durch getrennte Agenten bis Approved / Freigegeben.
 
-1. Intake prüft den Auftrag und schiebt eine ausführbare Karte nach Ready / Bereit.
-2. Der Implementierer nimmt sie aus Ready, setzt sie auf Running / In Arbeit und liefert das Arbeitsergebnis.
+1. Intake prüft den Auftrag in Backlog / Neu. Fehlende Abschnitte ergänzt er, soweit sie aus dem Text folgen. Unbekannte Tatsachen stellt er als Rückfrage in den Kommentar und lässt die Karte in Neu. Abhängigkeiten zu anderen Karten trägt er in den Abschnitt Dependencies ein. Erst eine vollständige Beschreibung ohne offene Rückfrage geht nach Ready / Bereit.
+2. Der Implementierer nimmt sie aus Ready, setzt sie auf Running / In Arbeit und liefert das Arbeitsergebnis. Liegt eine Abhängigkeit noch nicht in Approved oder Done, beginnt er nicht und lässt die Karte liegen.
 3. Danach liegt die Karte in Waiting Review / Gate.
-4. Der Prüfer urteilt kritisch. Bei Bestand geht die Karte nach Approved / Freigegeben. Offene Punkte schreibt er als Kommentar und gibt die Karte zurück nach Running / In Arbeit.
+4. Der Prüfer urteilt kritisch und beachtet dieselben Abhängigkeiten. Bei Bestand geht die Karte nach Approved / Freigegeben. Offene Punkte schreibt er als Kommentar und gibt die Karte zurück nach Running / In Arbeit. Eine unlesbare Modellantwort bleibt in Review und zählt nicht als Rückgabe.
 5. Der Implementierer liest diese Punkte zusammen mit dem Auftrag, setzt sie um und schreibt ein neues Arbeitsergebnis. Danach prüft der Prüfer erneut.
 6. Nach zwei Rückgaben ohne bestandenes Ergebnis geht die Karte nach Blocked / Failed.
 7. Done / Erledigt setzt nur ein Mensch, mit Namen, und erst nachdem der Commit auf `main` liegt.
@@ -29,7 +29,16 @@ Die drei Agenten sind getrennte Rollen. Prüfer und Implementierer sind zwei Mod
 
 hathi (`swift-1.5-iq2_xs` auf `http://hathi:8080/v1`, Ersatzadresse `http://192.168.5.26:8080/v1`) ist der gelegentliche Ersatz. Es übernimmt eine Rolle nur, wenn das bevorzugte Modell in diesem Lauf nicht antwortet. Sind kiara und flaps beide erreichbar, bleibt hathi ungenutzt. Ein Modell gibt die eigene Arbeit nicht frei. Fehlen flaps und hathi, bleibt die Karte in Neu oder in Review.
 
-Ein unvollständiger Auftrag bleibt in Backlog / Neu. Fehlt das Arbeitsergebnis oder fällt die Prüfung durch, geht die Karte mit den offenen Punkten zurück nach Running / In Arbeit. Der Implementierer arbeitet diese Punkte ab. Done entsteht daraus nicht.
+Ein unvollständiger Auftrag bleibt in Backlog / Neu, mit dem ergänzten Text und den Rückfragen im Kommentar. Ein Arbeitsergebnis mit Zusammenfassung geht auch ohne neue Datei nach Review. Fehlt das Arbeitsergebnis oder ist das Modell nicht erreichbar, bleibt die Karte in Running. Fällt die Prüfung fachlich durch, geht die Karte mit den offenen Punkten zurück nach Running. Der Implementierer arbeitet diese Punkte ab. Done entsteht daraus nicht.
+
+## Abhängigkeiten
+
+Der Abschnitt `## Dependencies` steht in der Kartenbeschreibung. Jede Zeile nennt eine Karte `FACT-NNN`, oder der Abschnitt enthält `keine`.
+
+- Intake setzt den Abschnitt, bevor die Karte nach Ready geht. Er nennt nur Karten, die auf dem Board stehen, und nur solche, deren Ergebnis diese Karte braucht.
+- Der Implementierer beginnt die Arbeit erst, wenn jede genannte Karte in Approved / Freigegeben oder Done / Erledigt liegt. Sonst bleibt die Karte in ihrer Spalte, und der Kommentar nennt die offene Abhängigkeit.
+- Der Prüfer gibt nicht frei, solange eine Abhängigkeit offen ist. Der Kommentar nennt die Spalte der vorausgesetzten Karte.
+- Eine Abhängigkeit auf die eigene Karte wird nicht eingetragen.
 
 ## Wirkung der Modellprüfung
 
@@ -46,7 +55,7 @@ Ein unvollständiger Auftrag bleibt in Backlog / Neu. Fehlt das Arbeitsergebnis 
 
 Jeder Agent schreibt sein Ergebnis als Kommentar an die Deck-Karte.
 
-- Intake: ob der Auftrag ausführbar ist, und die Begründung.
+- Intake: ob der Auftrag ausführbar ist, was ergänzt wurde, die Abhängigkeiten und offene Rückfragen.
 - Implementierer: Ticket, Dateien, Zusammenfassung.
 - Prüfer: Urteil, Begründung, Befunde, nächste Spalte.
 
