@@ -29,8 +29,10 @@ from factory_common import (
 from validate_ticket import parse_ticket
 
 Assess = Callable[[dict[str, Any], tuple[str, dict[str, Any]]], dict[str, Any]]
+Prepare = Callable[[dict[str, Any], tuple[str, dict[str, Any]], str], dict[str, Any]]
 Implement = Callable[[dict[str, Any], tuple[str, dict[str, Any]], str], dict[str, Any]]
 Critique = Callable[[dict[str, Any], tuple[str, dict[str, Any]], str], dict[str, Any]]
+BUDGET_DEFAULTS = {"max_walltime": "30m", "max_turns": "15", "max_files": "10"}
 
 
 def agent_names() -> tuple[str, str, str, str | None]:
@@ -78,8 +80,129 @@ def spec_errors(text: str) -> list[str]:
     return errors
 
 
+def _sections(text: str) -> dict[str, str]:
+    ticket, _errors = parse_ticket(text)
+    return ticket.sections
+
+
+def dependency_ids(text: str) -> list[str] | None:
+    """None, wenn der Abschnitt fehlt. Sonst die genannten FACT-Nummern."""
+    sections = _sections(text)
+    if "Dependencies" not in sections:
+        return None
+    found: list[str] = []
+    for item in re.findall(r"FACT-\d+", sections["Dependencies"]):
+        if item not in found:
+            found.append(item)
+    return found
+
+
+def replace_section(text: str, name: str, body: str) -> str:
+    lines = text.splitlines()
+    start: int | None = None
+    end: int | None = None
+    for index, line in enumerate(lines):
+        if line.startswith("## ") and not line.startswith("### "):
+            if start is not None and end is None:
+                end = index
+                break
+            if line[3:].strip() == name:
+                start = index
+    block = [f"## {name}", ""] + body.strip().splitlines()
+    if start is None:
+        return text.rstrip() + "\n\n" + "\n".join(block) + "\n"
+    if end is None:
+        end = len(lines)
+    merged = lines[:start] + block + [""] + lines[end:]
+    return "\n".join(merged).rstrip() + "\n"
+
+
+def fill_budget(text: str) -> tuple[str, list[str]]:
+    sections = _sections(text)
+    budget = sections.get("Budget", "")
+    missing = [key for key in BUDGET_DEFAULTS if key not in budget]
+    if "Budget" in sections and not missing:
+        return text, []
+    keys = missing or list(BUDGET_DEFAULTS)
+    extra = "\n".join(f"{key}: {BUDGET_DEFAULTS[key]}" for key in keys)
+    if "Budget" not in sections:
+        return text.rstrip() + "\n\n## Budget\n\n" + extra + "\n", keys
+    return replace_section(text, "Budget", (budget + "\n" + extra).strip()), keys
+
+
+def board_catalog(deck: Any, card: dict[str, Any]) -> str:
+    own = int(card["id"])
+    lines: list[str] = []
+    for key in ("backlog", "ready", "running", "waiting_review", "approved", "done", "blocked"):
+        title = stack_name(key)
+        for other in deck.cards(title) or []:
+            if int(other.get("id") or 0) == own:
+                continue
+            lines.append(f"{ticket_label(other)} | {title} | {other.get('title') or ''}")
+    return "\n".join(lines)
+
+
+def known_labels(catalog: str) -> set[str]:
+    return set(re.findall(r"FACT-\d+", catalog))
+
+
+def card_locations(deck: Any) -> dict[str, str]:
+    found: dict[str, str] = {}
+    for key in ("backlog", "ready", "running", "waiting_review", "approved", "done", "blocked"):
+        title = stack_name(key)
+        for other in deck.cards(title) or []:
+            label = ticket_label(other)
+            if label.startswith("FACT-"):
+                found[label] = title
+    return found
+
+
+def open_dependencies(deck: Any, card: dict[str, Any]) -> list[tuple[str, str]]:
+    ids = dependency_ids(str(card.get("description") or ""))
+    if not ids:
+        return []
+    located = card_locations(deck)
+    own = ticket_label(card)
+    done = {stack_name("approved"), stack_name("done")}
+    pending: list[tuple[str, str]] = []
+    for dep in ids:
+        if dep == own:
+            continue
+        where = located.get(dep, "fehlt")
+        if where not in done:
+            pending.append((dep, where))
+    return pending
+
+
+def apply_dependencies(text: str, deps: list[str], known: set[str], own: str) -> tuple[str, list[str]]:
+    cleaned: list[str] = []
+    for dep in deps:
+        if dep in known and dep != own and dep not in cleaned and re.fullmatch(r"FACT-\d+", dep):
+            cleaned.append(dep)
+    body = "\n".join(f"- {dep}" for dep in cleaned) if cleaned else "keine"
+    return replace_section(text, "Dependencies", body), cleaned
+
+
+def _question_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()][:5]
+
+
 MAX_RETURNS = 2
 RETURN_MARK = "Rückgabe an den Implementierer."
+
+
+def _model_fault(points: list[str]) -> str:
+    """Eine unlesbare Modellantwort ist kein fachlicher Mangel der Arbeit."""
+    blob = " ".join(points)
+    if "kein JSON" in blob or "nicht verwertbar" in blob:
+        real = [item for item in points if "kein JSON" not in item and "nicht verwertbar" not in item]
+        if not real:
+            return blob[:300]
+    return ""
 
 
 def return_count(comments: list[dict[str, Any]]) -> int:
@@ -194,9 +317,32 @@ def pick_card(deck: Any, card_id: int | None) -> tuple[dict[str, Any] | None, st
     return None, None
 
 
-def step_intake(deck: Any, card: dict[str, Any], intake: tuple[str, dict[str, Any]] | None, assess: Assess, *, dry_run: bool) -> dict[str, Any]:
+def _save_description(deck: Any, card: dict[str, Any], description: str, *, dry_run: bool) -> None:
+    if description == str(card.get("description") or ""):
+        return
+    card["description"] = description
+    if not dry_run:
+        deck.update_description(card, description)
+
+
+def _dependency_line(ids: list[str] | None) -> str:
+    if ids is None:
+        return "Abhängigkeiten: noch nicht ermittelt."
+    if not ids:
+        return "Abhängigkeiten: keine."
+    return "Abhängigkeiten: " + ", ".join(ids) + "."
+
+
+def step_intake(
+    deck: Any,
+    card: dict[str, Any],
+    intake: tuple[str, dict[str, Any]] | None,
+    prepare: Prepare,
+    *,
+    dry_run: bool,
+) -> dict[str, Any]:
     source = stack_name("backlog")
-    errors = spec_errors(str(card.get("description") or ""))
+    ready = stack_name("ready")
     if intake is None:
         comment = post_comment(
             deck,
@@ -206,48 +352,100 @@ def step_intake(deck: Any, card: dict[str, Any], intake: tuple[str, dict[str, An
             dry_run=dry_run,
         )
         return _action(card, "intake", None, source, source, comment, moved=False)
-    if errors:
+    original = str(card.get("description") or "")
+    errors = spec_errors(original)
+    deps = dependency_ids(original)
+    if not errors and deps is not None:
+        if dry_run:
+            comment = post_comment(
+                deck,
+                int(card["id"]),
+                f"Intake ({intake[0]}): Dry-run, die Karte würde nach {ready} gehen. "
+                + _dependency_line(deps),
+                dry_run=True,
+            )
+            return _action(card, "intake", intake[0], source, source, comment, moved=False)
+        move_card(deck, card, "hermes", source, ready, dry_run=False)
         comment = post_comment(
             deck,
             int(card["id"]),
-            "Intake (" + intake[0] + "): Der Auftrag bleibt in Backlog / Neu.\n"
-            "Begründung: " + "; ".join(errors),
-            dry_run=dry_run,
+            f"Intake ({intake[0]}): Der Auftrag ist ausführbar und geht nach {ready}.\n"
+            "Die Pflichtabschnitte sind vollständig.\n"
+            + _dependency_line(deps),
+            dry_run=False,
         )
-        return _action(card, "intake", intake[0], source, source, comment, moved=False)
+        return _action(card, "intake", intake[0], source, ready, comment, moved=True)
     if dry_run:
         comment = post_comment(
             deck,
             int(card["id"]),
-            f"Intake ({intake[0]}): Dry-run, die Karte bliebe in Backlog / Neu, bis der Agent sie prüft.",
+            f"Intake ({intake[0]}): Dry-run, fehlende Abschnitte und Abhängigkeiten würden ergänzt. "
+            "Die Karte bliebe in Backlog / Neu, bis das Ergebnis ausführbar ist.",
             dry_run=True,
         )
         return _action(card, "intake", intake[0], source, source, comment, moved=False)
-    verdict = assess(card, intake)
-    reason = str(verdict.get("reason") or "").strip() or "keine Begründung"
-    if verdict.get("pass"):
-        move_card(deck, card, "hermes", source, stack_name("ready"), dry_run=False)
+    catalog = board_catalog(deck, card)
+    try:
+        prepared = prepare(card, intake, catalog)
+    except Exception as exc:
+        prepared = {"usable": False, "error": str(exc)}
+    if not prepared.get("usable"):
+        detail = str(prepared.get("error") or "Antwort war kein JSON")
         comment = post_comment(
             deck,
             int(card["id"]),
-            f"Intake ({intake[0]}): Der Auftrag ist ausführbar und geht nach {stack_name('ready')}.\n"
-            f"Begründung: {reason}",
+            f"Intake ({intake[0]}): Der Auftrag bleibt in Backlog / Neu.\n"
+            f"Begründung: die Ergänzung war nicht verwertbar ({detail}).",
             dry_run=False,
         )
-        return _action(card, "intake", intake[0], source, stack_name("ready"), comment, moved=True)
-    comment = post_comment(
-        deck,
-        int(card["id"]),
-        f"Intake ({intake[0]}): Der Auftrag bleibt in Backlog / Neu.\nBegründung: {reason}",
-        dry_run=False,
-    )
-    return _action(card, "intake", intake[0], source, source, comment, moved=False)
+        return _action(card, "intake", intake[0], source, source, comment, moved=False)
+    text = str(prepared.get("description") or original)
+    before = set(_sections(original))
+    text, budget_keys = fill_budget(text)
+    text, cleaned = apply_dependencies(text, _question_list(prepared.get("dependencies")), known_labels(catalog), ticket_label(card))
+    questions = _question_list(prepared.get("questions"))
+    _save_description(deck, card, text, dry_run=False)
+    added = [name for name in _sections(text) if name not in before]
+    if budget_keys:
+        added.append("Budget-Vorgaben")
+    remaining = spec_errors(text)
+    if remaining or questions:
+        lines = [f"Intake ({intake[0]}): Der Auftrag bleibt in Backlog / Neu."]
+        if added:
+            lines.append("Ergänzt: " + ", ".join(added) + ".")
+        lines.append(_dependency_line(cleaned))
+        if questions:
+            lines.append("Rückfragen:")
+            lines.extend(f"- {item}" for item in questions)
+        if remaining:
+            lines.append("Noch offen: " + "; ".join(remaining) + ".")
+        comment = post_comment(deck, int(card["id"]), "\n".join(lines), dry_run=False)
+        return _action(card, "intake", intake[0], source, source, comment, moved=False)
+    move_card(deck, card, "hermes", source, ready, dry_run=False)
+    lines = [f"Intake ({intake[0]}): Der Auftrag ist ausführbar und geht nach {ready}."]
+    if added:
+        lines.append("Ergänzt: " + ", ".join(added) + ".")
+    lines.append(_dependency_line(cleaned))
+    comment = post_comment(deck, int(card["id"]), "\n".join(lines), dry_run=False)
+    return _action(card, "intake", intake[0], source, ready, comment, moved=True)
 
 
 def step_implement(deck: Any, card: dict[str, Any], source: str, implementer: tuple[str, dict[str, Any]] | None, implement: Implement, *, dry_run: bool) -> dict[str, Any]:
     review = stack_name("waiting_review")
     running = stack_name("running")
-    blocked = stack_name("blocked")
+    pending = open_dependencies(deck, card)
+    if pending:
+        listed = ", ".join(f"{dep} liegt in {where}" for dep, where in pending)
+        comment = post_comment(
+            deck,
+            int(card["id"]),
+            f"Implementierer ({implementer[0] if implementer else '-'}): Die Karte bleibt in {source}.\n"
+            f"Begründung: offene Abhängigkeiten: {listed}.\n"
+            "Die Arbeit beginnt, wenn diese Karten in Approved / Freigegeben oder Done / Erledigt liegen.",
+            dry_run=dry_run,
+        )
+        model_name = implementer[0] if implementer else None
+        return _action(card, "implementer", model_name, source, source, comment, moved=False)
     if implementer is None:
         comment = post_comment(
             deck,
@@ -277,31 +475,21 @@ def step_implement(deck: Any, card: dict[str, Any], source: str, implementer: tu
         work = {"ok": False, "files": [], "summary": str(exc), "errors": [str(exc)]}
     files = [str(item) for item in (work.get("files") or [])]
     summary = str(work.get("summary") or "").strip()
-    if not work.get("ok") or not files:
+    if not (work.get("ok") and (files or summary)):
         reason = summary or "; ".join(str(item) for item in (work.get("errors") or [])) or "kein Arbeitsergebnis"
-        if "kein Modell erreichbar" in reason:
-            url = str(implementer[1].get("url") or "")
-            comment = post_comment(
-                deck,
-                int(card["id"]),
-                f"Implementierer ({implementer[0]}): die Karte bleibt in {source}.\n"
-                f"Begründung: {reason}\n"
-                f"Aufgerufen wurde {url}. Ein anderes Modell prüft die Arbeit und baut sie nicht.\n"
-                "Die Karte bleibt liegen, bis dieser Aufruf gelingt.",
-                dry_run=False,
-            )
-            return _action(card, "implementer", implementer[0], source, source, comment, moved=False)
-        move_card(deck, card, "runner", source, blocked, dry_run=False)
+        url = str(implementer[1].get("url") or "")
+        extra = f"\nAufgerufen wurde {url}." if "kein Modell erreichbar" in reason else ""
         comment = post_comment(
             deck,
             int(card["id"]),
-            f"Implementierer ({implementer[0]}): kein verwertbares Arbeitsergebnis.\n"
-            f"Begründung: {reason}\n"
-            f"Die Karte geht nach {blocked}.",
+            f"Implementierer ({implementer[0]}): die Karte bleibt in {source}.\n"
+            f"Begründung: {reason}{extra}\n"
+            "Ein anderes Modell prüft die Arbeit und baut sie nicht.\n"
+            "Die Karte bleibt liegen, bis ein Arbeitsergebnis vorliegt.",
             dry_run=False,
         )
-        return _action(card, "implementer", implementer[0], source, blocked, comment, moved=True)
-    listed = ", ".join(files)
+        return _action(card, "implementer", implementer[0], source, source, comment, moved=False)
+    listed = ", ".join(files) if files else "(keine neuen Dateien)"
     move_card(deck, card, "runner", source, review, dry_run=False)
     comment = post_comment(
         deck,
@@ -351,6 +539,18 @@ def step_review(deck: Any, card: dict[str, Any], reviewer: tuple[str, dict[str, 
             dry_run=dry_run,
         )
         return _action(card, "reviewer", reviewer[0], source, source, comment, moved=False)
+    pending = open_dependencies(deck, card)
+    if pending:
+        listed = ", ".join(f"{dep} liegt in {where}" for dep, where in pending)
+        comment = post_comment(
+            deck,
+            int(card["id"]),
+            f"Prüfer ({reviewer[0]}): Die Karte bleibt in Waiting Review / Gate.\n"
+            f"Begründung: offene Abhängigkeiten: {listed}.\n"
+            "Freigabe gibt es, wenn diese Karten in Approved / Freigegeben oder Done / Erledigt liegen.",
+            dry_run=dry_run,
+        )
+        return _action(card, "reviewer", reviewer[0], source, source, comment, moved=False)
     if dry_run:
         comment = post_comment(
             deck,
@@ -374,6 +574,17 @@ def step_review(deck: Any, card: dict[str, Any], reviewer: tuple[str, dict[str, 
         passed = False
     if not passed:
         points = findings or [reason]
+        fault = _model_fault(points)
+        if fault:
+            comment = post_comment(
+                deck,
+                int(card["id"]),
+                f"Prüfer ({reviewer[0]}): Die Karte bleibt in Waiting Review / Gate.\n"
+                f"Begründung: {fault}\n"
+                "Das zählt nicht als Rückgabe an den Implementierer.",
+                dry_run=False,
+            )
+            return _action(card, "reviewer", reviewer[0], source, source, comment, moved=False)
         return _send_back(deck, card, reviewer, comments, points, dry_run=False)
     target = stack_name("approved")
     move_card(deck, card, "reviewer", source, target, dry_run=False)
@@ -426,11 +637,14 @@ def run_pipeline(
     assess: Assess,
     implement: Implement,
     critique: Critique,
+    prepare: Prepare | None = None,
     dry_run: bool = False,
     follow: bool = False,
     card_id: int | None = None,
 ) -> list[dict[str, Any]]:
+    del assess  # Die Ausführbarkeit entscheidet die vollständige Beschreibung, nicht ein zweites JSON-Urteil.
     implementer, intake, reviewer = assign_models(live)
+    planner = prepare or default_prepare
     actions: list[dict[str, Any]] = []
     target = card_id
     rounds = 4 if follow and not dry_run else 1
@@ -441,7 +655,7 @@ def run_pipeline(
         if source in {stack_name("approved"), stack_name("done"), stack_name("blocked")}:
             break
         if source == stack_name("backlog"):
-            action = step_intake(deck, card, intake, assess, dry_run=dry_run)
+            action = step_intake(deck, card, intake, planner, dry_run=dry_run)
         elif source in {stack_name("ready"), stack_name("running")}:
             action = step_implement(deck, card, source, implementer, implement, dry_run=dry_run)
         elif source == stack_name("waiting_review"):
@@ -481,6 +695,53 @@ def _complete(model: tuple[str, dict[str, Any]], system: str, user: str) -> str:
     )
 
 
+def default_prepare(card: dict[str, Any], model: tuple[str, dict[str, Any]], catalog: str) -> dict[str, Any]:
+    import runner
+
+    raw = runner.llm_call(
+        model[0],
+        model[1],
+        [
+            {
+                "role": "system",
+                "content": (
+                    "Du ergänzt einen Factory-Auftrag. Du schreibst keinen Code. "
+                    "Erfinde keine Zugangsdaten und kein Repository. "
+                    "Was du aus Titel und Text ableiten kannst, schreibst du in die Abschnitte "
+                    "Goal, Success criteria, Acceptance examples, Forbidden, Checks, Budget. "
+                    "Acceptance examples enthalten Normalfall, Grenzfall und Fehlerfall. "
+                    "Ist eine nötige Tatsache unbekannt, setze sie als Frage und lass den Abschnitt ehrlich. "
+                    "dependencies enthält nur FACT-Nummern aus der Liste anderer Karten, und nur wenn diese Karte "
+                    "deren Ergebnis braucht. Sonst eine leere Liste. "
+                    "Antworte nur mit JSON: "
+                    '{"description":"...","questions":["..."],"dependencies":["FACT-001"]}'
+                ),
+            },
+            {
+                "role": "user",
+                "content": "TITEL:\n"
+                + str(card.get("title") or "")
+                + "\n\nANDERE KARTEN:\n"
+                + (catalog or "(keine)")
+                + "\n\nAUFTRAG:\n"
+                + str(card.get("description") or ""),
+            },
+        ],
+        max_tokens=3072,
+    )
+    parsed = runner.extract_json(raw)
+    if isinstance(parsed, dict) and (parsed.get("description") or parsed.get("questions") is not None or parsed.get("dependencies") is not None):
+        return {
+            "usable": True,
+            "description": str(parsed.get("description") or card.get("description") or ""),
+            "questions": parsed.get("questions") or [],
+            "dependencies": parsed.get("dependencies") or [],
+        }
+    if isinstance(raw, str) and "## Goal" in raw and "## Acceptance examples" in raw:
+        return {"usable": True, "description": raw, "questions": [], "dependencies": []}
+    return {"usable": False, "error": "Antwort war kein JSON"}
+
+
 def default_assess(card: dict[str, Any], model: tuple[str, dict[str, Any]]) -> dict[str, Any]:
     text = _complete(
         model,
@@ -497,15 +758,19 @@ def default_implement(card: dict[str, Any], model: tuple[str, dict[str, Any]], t
 
     description = str(card.get("description") or "")
     norm = runner.parse_ticket(description)
+    deps = dependency_ids(description) or []
+    goal = str(norm.get("goal") or "")
+    if deps:
+        goal += "\n\nABHÄNGIGKEITEN, DIE BEREITS FREIGEGEBEN SIND:\n" + "\n".join(f"- {dep}" for dep in deps)
     if todos.strip():
-        goal = str(norm.get("goal") or "")
-        norm["goal"] = goal + "\n\nOFFENE PUNKTE AUS DER PRÜFUNG:\n" + todos.strip()
+        goal += "\n\nOFFENE PUNKTE AUS DER PRÜFUNG:\n" + todos.strip()
+    norm["goal"] = goal
     ticket_id = ticket_label(card)
     workdir = Path(__file__).resolve().parent.parent / "work" / ticket_id
     budget = runner.parse_budget(norm.get("budget", ""))
     work = runner.do_work(ticket_id, norm, [model], budget, workdir)
     return {
-        "ok": bool(work.get("ok")) and bool(work.get("files")),
+        "ok": bool(work.get("ok")),
         "summary": str(work.get("summary") or ""),
         "files": list(work.get("files") or []),
         "model": model[0],
@@ -517,7 +782,7 @@ def default_critique(card: dict[str, Any], model: tuple[str, dict[str, Any]], wo
     text = _complete(
         model,
         "Du bist ein unabhängiger Prüfer. Du hast die Arbeit nicht gebaut. "
-        "Suche Lücken gegenüber Ziel, Abnahme und Verboten. "
+        "Suche Lücken gegenüber Ziel, Abnahme, Verboten und Abhängigkeiten. "
         "Antworte nur mit JSON: {\"pass\": true|false, \"reason\": \"...\", \"findings\": [\"...\"]}. "
         "pass ist nur true, wenn die genannten Dateien die Abnahme tragen. "
         "Eine leere Begründung ist kein Bestehen.",

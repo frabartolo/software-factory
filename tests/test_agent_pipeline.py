@@ -43,6 +43,10 @@ Eine Hello-World-Ausgabe.
 max_walltime: 5m
 max_turns: 4
 max_files: 2
+
+## Dependencies
+
+keine
 """
 
 
@@ -66,6 +70,9 @@ class MemoryDeck:
                     self.stacks.setdefault(target, []).append(item)
                     return
         raise AssertionError(card_id)
+
+    def update_description(self, card: dict, description: str) -> None:
+        card["description"] = description
 
     def add_comment(self, card_id: int, message: str) -> None:
         self.comments.setdefault(int(card_id), []).append(message)
@@ -259,19 +266,125 @@ class AgentPipelineTest(unittest.TestCase):
         self.assertEqual(deck.comments, {})
         self.assertFalse(actions[0]["moved"])
 
-    def test_incomplete_spec_stays_in_neu(self) -> None:
+    def test_incomplete_spec_is_completed_and_records_dependency(self) -> None:
         deck = MemoryDeck()
-        deck.add(stack_name("backlog"), {"id": 12, "title": "FACT-019", "description": "## Goal\n\nNur ein Ziel.\n", "order": 0})
+        deck.add(stack_name("backlog"), {"id": 19, "title": "FACT-001 — Schema", "description": SPEC, "order": 0})
+        deck.add(stack_name("backlog"), {"id": 12, "title": "FACT-019", "description": "## Goal\n\nNur ein Ziel.\n", "order": 1})
+
+        def prepare(card, model, catalog):
+            self.assertIn("FACT-001", catalog)
+            return {"usable": True, "description": SPEC, "questions": [], "dependencies": ["FACT-001", "FACT-999"]}
+
         run_pipeline(
             deck,
             live_pair(),
-            assess=lambda card, model: {"pass": True, "reason": "soll nicht reichen"},
+            assess=lambda card, model: {"pass": True, "reason": "soll nicht entscheiden"},
+            prepare=prepare,
+            implement=lambda card, model, todos="": {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
+            critique=lambda card, model, work: {"pass": True, "reason": "ok", "findings": []},
+            card_id=12,
+        )
+        self.assertEqual(deck.where(12), stack_name("ready"))
+        self.assertIn("FACT-001", deck.comments[12][0])
+        self.assertNotIn("FACT-999", deck.comments[12][0])
+        self.assertIn("- FACT-001", [item for item in deck.stacks[stack_name("ready")] if item["id"] == 12][0]["description"])
+
+    def test_open_question_stays_in_neu(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("backlog"), {"id": 12, "title": "FACT-019", "description": "## Goal\n\nNur ein Ziel.\n", "order": 0})
+
+        def prepare(card, model, catalog):
+            return {"usable": True, "description": SPEC, "questions": ["Welches Repository ist gemeint?"], "dependencies": []}
+
+        run_pipeline(
+            deck,
+            live_pair(),
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            prepare=prepare,
             implement=lambda card, model, todos="": {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
             critique=lambda card, model, work: {"pass": True, "reason": "ok", "findings": []},
             card_id=12,
         )
         self.assertEqual(deck.where(12), stack_name("backlog"))
-        self.assertIn("Pflichtabschnitt fehlt", deck.comments[12][0])
+        self.assertIn("Welches Repository ist gemeint?", deck.comments[12][0])
+        self.assertNotIn(stack_name("blocked"), deck.where(12))
+
+    def test_summary_without_new_files_goes_to_review(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("running"), {"id": 20, "title": "FACT-006 — Audit", "description": SPEC, "order": 0})
+        run_pipeline(
+            deck,
+            live_pair(),
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            implement=lambda card, model, todos="": {
+                "ok": True,
+                "files": [],
+                "summary": "The factory.py already contained a complete audit log. No changes needed.",
+                "errors": [],
+            },
+            critique=lambda card, model, work: {"pass": True, "reason": "ok", "findings": []},
+            card_id=20,
+        )
+        self.assertEqual(deck.where(20), stack_name("waiting_review"))
+        self.assertIn("keine neuen Dateien", deck.comments[20][-1])
+        self.assertIn("already contained", deck.comments[20][-1])
+
+    def test_unreadable_review_does_not_block(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("waiting_review"), {"id": 21, "title": "FACT-006", "description": SPEC, "order": 0})
+        deck.add_comment(21, "Implementierer (kiara): Arbeitsergebnis für FACT-006.\nDateien: factory.py\nZusammenfassung: Audit.")
+        deck.add_comment(21, "Prüfer (flaps): Rückgabe an den Implementierer.\nOffene Punkte:\n- erste")
+        deck.add_comment(21, "Prüfer (flaps): Rückgabe an den Implementierer.\nOffene Punkte:\n- zweite")
+        run_pipeline(
+            deck,
+            live_pair(),
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
+            critique=lambda card, model, work: {"pass": False, "reason": "Antwort war kein JSON", "findings": ["Antwort war kein JSON"]},
+            card_id=21,
+        )
+        self.assertEqual(deck.where(21), stack_name("waiting_review"))
+        self.assertIn("nicht als Rückgabe", deck.comments[21][-1])
+
+    def test_open_dependency_keeps_ready_card(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("backlog"), {"id": 29, "title": "FACT-001 — Schema", "description": SPEC, "order": 0})
+        waiting = SPEC.replace("keine", "- FACT-001")
+        deck.add(stack_name("ready"), {"id": 30, "title": "FACT-002 — Runner", "description": waiting, "order": 0})
+        called = {"implement": False}
+
+        def implement(card, model, todos=""):
+            called["implement"] = True
+            return {"ok": True, "files": ["a.py"], "summary": "x", "errors": []}
+
+        run_pipeline(
+            deck,
+            live_pair(),
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            implement=implement,
+            critique=lambda card, model, work: {"pass": True, "reason": "ok", "findings": []},
+            card_id=30,
+        )
+        self.assertFalse(called["implement"])
+        self.assertEqual(deck.where(30), stack_name("ready"))
+        self.assertIn("FACT-001 liegt in", deck.comments[30][-1])
+
+    def test_open_dependency_blocks_approval(self) -> None:
+        deck = MemoryDeck()
+        deck.add(stack_name("running"), {"id": 29, "title": "FACT-001 — Schema", "description": SPEC, "order": 0})
+        waiting = SPEC.replace("keine", "- FACT-001")
+        deck.add(stack_name("waiting_review"), {"id": 30, "title": "FACT-002 — Runner", "description": waiting, "order": 0})
+        deck.add_comment(30, "Implementierer (kiara): Arbeitsergebnis für FACT-002.\nDateien: runner.py\nZusammenfassung: Lauf.")
+        run_pipeline(
+            deck,
+            live_pair(),
+            assess=lambda card, model: {"pass": True, "reason": "ok"},
+            implement=lambda card, model, todos="": {"ok": True, "files": ["a.py"], "summary": "x", "errors": []},
+            critique=lambda card, model, work: {"pass": True, "reason": "soll nicht freigeben", "findings": []},
+            card_id=30,
+        )
+        self.assertEqual(deck.where(30), stack_name("waiting_review"))
+        self.assertIn("offene Abhängigkeiten", deck.comments[30][-1])
 
     def test_hathi_reviews_when_flaps_is_absent(self) -> None:
         deck = MemoryDeck()
