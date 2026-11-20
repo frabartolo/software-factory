@@ -30,6 +30,17 @@ from factory_common import (
 )
 
 
+def owner_uid(owner: Any, fallback: str = "") -> str:
+    """Deck liefert den Besitzer als Objekt. Der Schreibaufruf erwartet die uid."""
+    if isinstance(owner, dict):
+        uid = owner.get("uid") or owner.get("primaryKey") or ""
+        if isinstance(uid, str) and uid.strip():
+            return uid.strip()
+    elif isinstance(owner, str) and owner.strip():
+        return owner.strip()
+    return fallback
+
+
 class DeckClient:
     def __init__(self, credentials: Credentials, board_id: int) -> None:
         self.credentials = credentials
@@ -105,18 +116,17 @@ class DeckClient:
     def _update_card(self, card: dict[str, Any], changes: dict[str, Any]) -> None:
         stack_id = int(card["stackId"])
         card_id = int(card["id"])
-        owner = card.get("owner")
-        if isinstance(owner, dict):
-            owner = owner.get("uid") or owner.get("primaryKey") or ""
-        owner = str(owner) if owner else self.credentials.user
         body = {
             "title": card.get("title") or "",
             "type": card.get("type") or "plain",
             "order": card.get("order") or 0,
             "description": card.get("description") or "",
-            "owner": owner,
+            "owner": owner_uid(card.get("owner"), self.credentials.user),
         }
         body.update(changes)
+        # Ein nachgereichtes Owner-Objekt würde Deck wieder mit HTTP 400 ablehnen.
+        if "owner" in body:
+            body["owner"] = owner_uid(body.get("owner"), self.credentials.user)
         path = f"/boards/{self.board_id}/stacks/{stack_id}/cards/{card_id}"
         self._request("PUT", path, body)
 

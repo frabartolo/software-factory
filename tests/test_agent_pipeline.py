@@ -498,11 +498,20 @@ class DeckOwnerSerializationTest(unittest.TestCase):
         self.assertEqual(body["owner"], "hermes")
         self.assertIsInstance(body["owner"], str)
 
-    def test_update_description_numeric_uid(self):
+    def test_update_description_numeric_string_uid(self):
+        """Realistic Deck uid is a numeric string (e.g. '42'), returned as-is."""
+        deck, requests = self._deck()
+        deck.update_description(self._card({"uid": "42"}), "neu")
+        body = requests[-1][2]
+        self.assertEqual(body["owner"], "42")
+        self.assertIsInstance(body["owner"], str)
+
+    def test_update_description_non_string_uid_falls_back_to_user(self):
+        """A non-string uid (e.g. int) is not a real Deck uid -> fallback."""
         deck, requests = self._deck()
         deck.update_description(self._card({"uid": 42}), "neu")
         body = requests[-1][2]
-        self.assertEqual(body["owner"], "42")
+        self.assertEqual(body["owner"], "hermes")
         self.assertIsInstance(body["owner"], str)
 
 
