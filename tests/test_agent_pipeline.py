@@ -515,5 +515,19 @@ class DeckOwnerSerializationTest(unittest.TestCase):
         self.assertIsInstance(body["owner"], str)
 
 
+    def test_owner_in_changes_is_converted_to_uid(self):
+        """PR#9's guard: a later owner override (passed via changes) is also
+        converted to a uid string, never left as a dict (HTTP 400)."""
+        deck, requests = self._deck()
+        card = self._card({"uid": "stefan", "primaryKey": "stefan", "type": 0})
+        deck._update_card(
+            card,
+            {"description": "neu", "owner": {"uid": "other", "primaryKey": "other"}},
+        )
+        body = requests[-1][2]
+        self.assertEqual(body["owner"], "other")
+        self.assertIsInstance(body["owner"], str)
+        self.assertNotIsInstance(body["owner"], dict)
+
 if __name__ == "__main__":
     unittest.main()
