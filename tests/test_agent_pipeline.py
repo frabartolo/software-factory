@@ -444,5 +444,67 @@ class AgentPipelineTest(unittest.TestCase):
             check_transition("reviewer", stack_name("approved"), stack_name("done"))
 
 
+class DeckOwnerSerializationTest(unittest.TestCase):
+    """deck.py: Card-PUTs senden owner als UID-String, nie als dict (HTTP-400-Fix)."""
+
+    def _deck(self):
+        import types
+
+        from deck import DeckClient
+
+        cred = types.SimpleNamespace(
+            base_url="https://192.168.5.46/",
+            tls_verify=False,
+            user="hermes",
+            secret="secret",
+            source="basic",
+        )
+        deck = DeckClient(cred, 1)
+        requests = []
+
+        def fake_request(method, path, body):
+            requests.append((method, path, dict(body)))
+            return {}
+
+        deck._request = fake_request
+        return deck, requests
+
+    def _card(self, owner):
+        card = {
+            "id": 102,
+            "stackId": 21,
+            "title": "FACT-006",
+            "type": "plain",
+            "order": 0,
+            "description": "alt",
+        }
+        card["owner"] = owner
+        return card
+
+    def test_update_description_sends_uid_string_not_dict(self):
+        deck, requests = self._deck()
+        deck.update_description(
+            self._card({"uid": "stefan", "primaryKey": "stefan", "type": 0}), "neu"
+        )
+        body = requests[-1][2]
+        self.assertEqual(body["owner"], "stefan")
+        self.assertIsInstance(body["owner"], str)
+        self.assertNotIsInstance(body["owner"], dict)
+
+    def test_update_description_no_owner_falls_back_to_user(self):
+        deck, requests = self._deck()
+        deck.update_description(self._card(None), "neu")
+        body = requests[-1][2]
+        self.assertEqual(body["owner"], "hermes")
+        self.assertIsInstance(body["owner"], str)
+
+    def test_update_description_numeric_uid(self):
+        deck, requests = self._deck()
+        deck.update_description(self._card({"uid": 42}), "neu")
+        body = requests[-1][2]
+        self.assertEqual(body["owner"], "42")
+        self.assertIsInstance(body["owner"], str)
+
+
 if __name__ == "__main__":
     unittest.main()

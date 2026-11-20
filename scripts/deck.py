@@ -105,12 +105,16 @@ class DeckClient:
     def _update_card(self, card: dict[str, Any], changes: dict[str, Any]) -> None:
         stack_id = int(card["stackId"])
         card_id = int(card["id"])
+        owner = card.get("owner")
+        if isinstance(owner, dict):
+            owner = owner.get("uid") or owner.get("primaryKey") or ""
+        owner = str(owner) if owner else self.credentials.user
         body = {
             "title": card.get("title") or "",
             "type": card.get("type") or "plain",
             "order": card.get("order") or 0,
             "description": card.get("description") or "",
-            "owner": card.get("owner") or self.credentials.user,
+            "owner": owner,
         }
         body.update(changes)
         path = f"/boards/{self.board_id}/stacks/{stack_id}/cards/{card_id}"
