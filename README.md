@@ -71,6 +71,6 @@ abführen soll (z. B. `find . -type d | grep 'tickets/new'`).
 
 ## Ablauf
 
-Der laufende Weg ist das Deck. `scripts/agent_pipeline.py` führt eine Karte von Neu bis Approved. Die Anforderungen, Abhängigkeiten, Rollen und Grenzen stehen in `docs/anforderungen.md`.
+Der laufende Weg ist das Deck. `scripts/agent_pipeline.py` führt eine Karte von Neu bis Approved. Die Anforderungen, Abhängigkeiten, Rollen und Grenzen stehen in `docs/anforderungen.md`. Dieselbe Fabrik auf Jira, Zephyr Scale und Codex steht in `docs/jira-zephyr-codex.md`.
 
 Die Verzeichnisse unter `tickets/` sind der abgeleitete Puffer. `deck_sync.py` schreibt Ready-Karten noch nach `tickets/new`, der Datei-Runner liest `tickets/new`, `factory.py run-once` liest `tickets/ready`. Das ist offen und in `docs/anforderungen.md` unter „Noch nicht erfüllt“ beschrieben.
