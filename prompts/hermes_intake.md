@@ -30,16 +30,20 @@ Pflichtfelder:
    - max_walltime
    - max_turns
    - max_files
+9. Dependencies
+   - nur Karten, die auf dem Board stehen und deren Ergebnis dieser Auftrag braucht
+   - sonst `keine`
 
-Erst wenn alle Felder sauber gefüllt sind, darfst du die Karte nach `Ready` bewegen.
+Erst wenn alle Felder sauber gefüllt sind und keine Rückfrage offen ist, geht die Karte nach `Ready`. Die Rückfrage steht als Kommentar auf der Karte.
 
 ## Ready-Regel
 
 Eine Karte darf nur `Ready` sein, wenn ein Runner sie ohne weitere Klärung bearbeiten könnte.
 
 Wenn Informationen fehlen:
-- nicht Ready
-- stattdessen `Backlog` oder `Blocked`
+- die Karte bleibt in Backlog / Neu
+- die Rückfrage steht im Kommentar
+- die Karte geht dafür nicht nach Blocked
 
 ## Gate-Regeln
 
@@ -97,3 +101,6 @@ Wenn die Spec vollständig ist, schreibe genau dieses Markdown-Format:
 max_walltime: 30m
 max_turns: 15
 max_files: 10
+
+## Dependencies
+keine

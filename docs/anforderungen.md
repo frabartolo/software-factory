@@ -1,6 +1,6 @@
 # Anforderungen der Software-Factory
 
-Stand 19. November 2026. Das Board ist „Software-Factory“, Id 7, auf Nextcloud. Die Spalten heißen Backlog / Neu, Ready / Bereit, Running / In Arbeit, Waiting Review / Gate, Approved / Freigegeben, Done / Erledigt und Blocked / Failed. **Das Deck ist die Single Source of Truth:** Alle Vorgänge (FACT-…-Tickets) werden dort **bearbeitet**, **ergänzt** und **durch den Prozess** auf den Stacks geschoben.
+Stand 22. November 2026. Das Board ist „Software-Factory“, Id 7, auf Nextcloud. Die Spalten heißen Backlog / Neu, Ready / Bereit, Running / In Arbeit, Waiting Review / Gate, Approved / Freigegeben, Done / Erledigt und Blocked / Failed. **Das Deck ist die Single Source of Truth:** Alle Vorgänge (FACT-…-Tickets) werden dort **bearbeitet**, **ergänzt** und **durch den Prozess** auf den Stacks geschoben.
 
 ## Ablauf einer Karte
 
@@ -77,7 +77,15 @@ Für ein Ticket gibt es höchstens einen Worktree unter `work/<Ticket-ID>`. Exis
 
 ## Form eines Auftrags
 
-Ein ausführbarer Auftrag enthält die Abschnitte Goal, Success criteria, Acceptance examples, Forbidden, Checks und Budget. Die Abnahme nennt Normalfall, Grenzfall und Fehlerfall. Das Budget nennt `max_walltime`, `max_turns` und `max_files`.
+Ein ausführbarer Auftrag enthält die Abschnitte Goal, Success criteria, Acceptance examples, Forbidden, Checks, Budget und Dependencies. Die Abnahme nennt Normalfall, Grenzfall und Fehlerfall. Das Budget nennt `max_walltime`, `max_turns` und `max_files`. Dependencies nennt die vorausgesetzten Karten oder `keine`.
+
+Fehlen Budget-Schlüssel, trägt der Intake `max_walltime: 30m`, `max_turns: 15` und `max_files: 10` ein. Der Runner hebt ein kleineres Budget auf die Untergrenze aus `config/factory.yaml` an: 90 Minuten, 40 Runden, 30 Dateien. Er senkt ein höheres Budget der Karte nicht.
+
+Ein einzelner Modellaufruf wartet höchstens 400 Sekunden. Der Nachtlauf wartet pro Karte höchstens 6000 Sekunden. Das Budget der Karte bleibt die Grenze für Runden, Dateien und Arbeitszeit.
+
+## Beschreibung speichern
+
+Deck liefert den Besitzer einer Karte als Objekt mit `uid`, `primaryKey` und `displayname`. Der Schreibaufruf schickt nur die `uid`. Geht das Objekt mit, antwortet Deck mit HTTP 400, die Beschreibung bleibt unverändert, und der Intake kann die Ergänzung nicht sichern.
 
 ## Sicherheit und Grenzen
 
