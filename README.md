@@ -49,6 +49,7 @@ Ein Ticket ist eine Markdown-Datei mit diesen **Pflicht-Sektionen** (`##`):
 - `## Forbidden`
 - `## Checks`
 - `## Budget`
+- `## Dependencies` — vorausgesetzte Karten `FACT-NNN`, oder `keine`
 
 Jede Pflicht-Sektion muss **nicht leer** sein. Die Sektion `## Budget` muss die
 maschinenlesbaren Schlüssel `max_walltime`, `max_turns` und `max_files` im Format
@@ -68,10 +69,8 @@ python3 scripts/validate_factory_schema.py tickets/sample/FACT-EXAMPLE.md
 Die Zeilen unter `## Checks` enthalten die Kommandos, die die jeweilige Station
 abführen soll (z. B. `find . -type d | grep 'tickets/new'`).
 
-## Status (PoC, FACT-001)
+## Ablauf
 
-Gerüst + maschinenlesbares Schema + Validator + gültiges Beispiel-Ticket.
-**Noch NICHT enthalten** (eigene Tickets): Runner (FACT-002), Git-Worktree
-(FACT-003), Check-Pipeline (FACT-004), Job-Report (FACT-005), Audit-Log
-(FACT-006), CLI/TUI (FACT-007), flaps-Healthcheck & Routing (FACT-008),
-Deck-Adapter (FACT-009).
+Der laufende Weg ist das Deck. `scripts/agent_pipeline.py` führt eine Karte von Neu bis Approved. Die Anforderungen, Abhängigkeiten, Rollen und Grenzen stehen in `docs/anforderungen.md`.
+
+Die Verzeichnisse unter `tickets/` sind der abgeleitete Puffer. `deck_sync.py` schreibt Ready-Karten noch nach `tickets/new`, der Datei-Runner liest `tickets/new`, `factory.py run-once` liest `tickets/ready`. Das ist offen und in `docs/anforderungen.md` unter „Noch nicht erfüllt“ beschrieben.
