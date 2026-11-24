@@ -1,276 +1,175 @@
 #!/usr/bin/env python3
-"""FACT-009: Deck-Adapter — importiert "Ready"-Cards in die lokale Datei-Queue.
+"""Adapter: liest Karten aus dem „Ready"-Stack des Nextcloud-Deck-Boards
+„Software Factory" und materialisiert sie als Markdown-Tickets in tickets/new.
 
-Liest Karten vom Nextcloud-Deck (Board "Software Factory", Stack "Ready") und
-materialisiert sie als lokale Markdown-Tickets in `tickets/new`.
+Verbindet sich über den bestehenden DeckClient (scripts/deck.py) mit der
+Nextcloud-Deck-API. Zugangsdaten kommen aus der Factory-Env (NC_BASE /
+NC_USER / NC_APP_PASSWORD in /etc/factory/runner.env).
 
-Verwendung:
-    python3 deck_sync.py --once            # einmal importieren (Default)
-    python3 deck_sync.py --once --dry-run  # nur anzeigen, nichts schreiben
-    python3 deck_sync.py --once --board 7 --stack "Ready"
+Usage:
+    python3 deck_sync.py --once --dry-run
+    python3 deck_sync.py --once
 
-Regeln:
-- Keine Card-Verschiebung, kein Writeback an den Deck (nur Lesen).
-- Keine Secrets im Repo: Credentials kommen aus OUTSIDE (.hermes/config).
-- Keine Code-Execution aus Kartentext (Text wird nur als Text geschrieben).
-- Dedup über state/imported.json (nach card_id).
-
-Auth:
-- HTTP Basic Auth mit Service-User + App-Password (deck-auth.env).
-- Kein OAuth2-Client-Flow, kein Browser, kein Token-Refresh.
-
-Exit-Codes:
-    0  Erfolg (auch 0 importierte Karten)
-    2  Fehler (Auth/Deck API nicht erreichbar, Stack nicht gefunden, ...)
+Verhalten:
+  * Duplikatsschutz über tickets/.imported.json (gesammelte Card-IDs).
+  * --dry-run: nur anzeigen, was importiert würde; schreibt nichts.
+  * Klare Fehlermeldung + exit 1, wenn die Deck-API unerreichbar ist.
+  * exit 0, wenn alles funktioniert (auch „keine Karten").
 """
+
 from __future__ import annotations
+
 import argparse
-import base64
 import json
 import os
 import re
-import ssl
 import sys
-import time
-import subprocess
-import urllib.error
-import urllib.parse
-import urllib.request
+from datetime import datetime
+from pathlib import Path
 
-FACTORY_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TICKETS_NEW = os.path.join(FACTORY_DIR, "tickets", "new")
-STATE_DIR = os.path.join(FACTORY_DIR, "state")
-STATE_FILE = os.path.join(STATE_DIR, "imported.json")
-
-# Credentials OUTSIDE der Factory (keine Secrets im Repo)
-CONFIG_BASE = "/home/kiara/.hermes/config/software-factory"
-DECK_ENV = os.path.join(CONFIG_BASE, "deck-auth.env")  # DECK_USERNAME + DECK_APP_PASSWORD
-NC = "https://192.168.5.46"
-
-BOARD_ID = 7
-STACK_ID_DEFAULT = 22
-STACK_TITLE_DEFAULT = "Ready"  # matcht "Ready / Bereit"
+# DeckClient & factory-common importieren (sitzt unter scripts/).
+# Funktioniert unabhängig vom Startpfad (work/FACT-009/ oder scripts/):
+def _scripts_dir():
+    start = Path(__file__).resolve().parent
+    for parent in [start, *start.parents]:
+        for sub in (parent / "scripts", parent):
+            if (sub / "factory_common.py").exists():
+                return sub
+    raise RuntimeError("factory_common.py / scripts-Verzeichnis nicht gefunden")
 
 
-# --- HTTP / Auth -----------------------------------------------------------
-def _ctx() -> ssl.SSLContext:
-    c = ssl.create_default_context()
-    c.check_hostname = False
-    c.verify_mode = ssl.CERT_NONE
-    return c
+_SCRIPTS_DIR = _scripts_dir()
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from factory_common import FactoryError, factory_config, load_credentials  # noqa: E402
+from deck import DeckClient  # noqa: E402
+
+BOARD_NAME = "Software Factory"
+STACK_TITLE = "Ready / Bereit"
+TICKETS_DIR = "tickets/new"
+IMPORTED_FILE = os.path.join("tickets", ".imported.json")
+
+# Test-Hook: callable -> Deck-Objekt. None = echtes Deck (DeckClient).
+_deck = None
 
 
-def http(method: str, path: str, headers: dict = None, data: bytes = None):
-    """Führt ein HTTP-Request aus. Liefert (status, body) zurück (kein Throw)."""
-    h = dict(headers or {})
-    r = urllib.request.Request(NC + path, method=method, data=data, headers=h)
-    try:
-        resp = urllib.request.urlopen(r, context=_ctx(), timeout=30)
-        return resp.status, resp.read().decode("utf-8")
-    except urllib.error.HTTPError as e:
+def deck():
+    """Deck-Objekt liefern. In Tests wird _deck auf einen Mock gesetzt."""
+    if _deck is not None:
+        return _deck()
+    credentials = load_credentials()
+    if credentials is None:
+        raise ConnectionError(
+            "Keine Nextcloud-Zugangsdaten gefunden. Lege /etc/factory/runner.env "
+            "mit NC_BASE, NC_USER und NC_APP_PASSWORD an."
+        )
+    board_id = int(factory_config()["board"]["id"])
+    return DeckClient(credentials, board_id)
+
+
+def load_state():
+    if os.path.exists(IMPORTED_FILE):
         try:
-            body = e.read().decode("utf-8")
-        except Exception:
-            body = str(getattr(e, "reason", e))
-        return e.code, body
-    except urllib.error.URLError as e:
-        return (getattr(e, "code", 0) or 0), str(e)
-    except Exception as e:
-        return 0, str(e)
+            with open(IMPORTED_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data.get("card_ids", [])
+        except (json.JSONDecodeError, OSError):
+            pass
+    return []
 
 
-def _load_env() -> dict:
-    """Lädt DECK_USERNAME / DECK_APP_PASSWORD aus deck-auth.env.
-    Wert: nur umgebende identische Anführungszeichen + Whitespace werden
-    entfernt — innere Zeichen (z. B. %, $, *) bleiben exakt erhalten."""
-    env: dict = {}
-    try:
-        with open(DECK_ENV) as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                v = v.strip()
-                if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
-                    v = v[1:-1]
-                env[k.strip()] = v
-    except OSError:
-        pass
-    return env
+def save_state(card_ids):
+    os.makedirs(os.path.dirname(IMPORTED_FILE), exist_ok=True)
+    with open(IMPORTED_FILE, "w", encoding="utf-8") as f:
+        json.dump({"card_ids": card_ids}, f, indent=2)
 
 
-def get_auth():
-    """Liefert (headers or None, status_string). Basic-Auth aus deck-auth.env."""
-    env = _load_env()
-    user = env.get("DECK_USERNAME", "").strip()
-    pwd = env.get("DECK_APP_PASSWORD", "").strip()
-    if not user:
-        return None, "username fehlt in deck-auth.env (DECK_USERNAME)"
-    if not pwd:
-        return None, "App-Passwort fehlt in deck-auth.env (DECK_APP_PASSWORD) — bitte über Nextcloud erzeugen"
-    token = base64.b64encode(f"{user}:{pwd}".encode("utf-8")).decode("ascii")
-    h = {
-        "Authorization": "Basic " + token,
-        "OCS-APIRequest": "true",
-        "Content-Type": "application/json",
-    }
-    return h, f"Basic-Auth ok ({user})"
+def normalize_filename(title):
+    stem = (title or "").lower().strip()
+    stem = re.sub(r"[^a-z0-9_\-]", "-", stem)
+    stem = re.sub(r"-{2,}", "-", stem)
+    stem = stem.strip("-")
+    return stem if stem else "untitled"
 
 
-# --- State (Dedup) ---------------------------------------------------------
-def load_state() -> dict:
-    try:
-        with open(STATE_FILE) as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def save_state(state: dict) -> None:
-    os.makedirs(STATE_DIR, exist_ok=True)
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f, indent=2)
-
-
-# --- Mapping (Deck-Card -> lokales Ticket) ---------------------------------
-def make_filename(card_id: int, title: str) -> str:
-    """Normales, kollision-sicheres Dateinamen aus card_id + title."""
-    title = (title or "").strip()
-    m = re.match(r"\s*FACT-(\d{3,})", title)
-    if m:
-        return f"FACT-{m.group(1)}.md"
-    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:80]
-    slug = f"{slug}-{card_id}" if slug else f"card-{card_id}"
-    return f"{slug}.md"
-
-
-def find_stack(stacks: list, match: str, stack_id: int = None):
-    """Aktiven Stack finden: per Titel-Substring (case-insensitive) oder Stack-Id."""
-    active = [s for s in stacks if not s.get("deletedAt")]
-    match_l = (match or "").strip().lower()
-    if match_l:
-        for s in active:
-            if match_l in (s.get("title") or "").lower():
-                return s
-    if stack_id is not None:
-        for s in active:
-            if s.get("id") == stack_id:
-                return s
-    return None
-
-
-def build_content(card: dict, stack: dict) -> str:
-    """Lokales Ticket-Text: normalisierte Title + Description (nur Text, kein Exec)."""
-    title = (card.get("title") or "").strip()
-    desc = (card.get("description") or "").strip()
-    labels = [ (l or {}).get("title") or "" for l in (card.get("labels") or []) ]
-    labels = [l for l in labels if l]
-    lines = [f"# {title}", ""]
-    lines.append(
-        f"<!-- source: nextcloud-deck board={stack.get('boardId')} "
-        f"stack=\"{stack.get('title')}\" card_id={card.get('id')} -->"
+def create_ticket_file(card_id, title, description, dry_run):
+    os.makedirs(TICKETS_DIR, exist_ok=True)
+    filename = normalize_filename(title) + ".md"
+    filepath = os.path.join(TICKETS_DIR, filename)
+    content = (
+        "# %s\n\n%s\n\n---\n"
+        "Card ID: %s\nBoard: %s\nStack: %s\nImported: %s\n"
+    ) % (
+        title, description, card_id, BOARD_NAME, STACK_TITLE,
+        datetime.now().isoformat()
     )
-    if labels:
-        lines.append(f"<!-- labels: {', '.join(labels)} -->")
-    lines.append("")
-    if desc:
-        lines.append(desc)
-    return "\n".join(lines).rstrip() + "\n"
+    if dry_run:
+        print("[DRY-RUN] Would create: %s" % filepath)
+        print("[DRY-RUN]   Title: %s" % title)
+        print("[DRY-RUN]   Card ID: %s" % card_id)
+        return filepath
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("[OK] Created: %s" % filepath)
+    return filepath
 
 
-# --- Validation (Schema-Gate) -----------------------------------------------
-def _validate_ticket(path: str) -> tuple[bool, str]:
-    """Validiert ein importiertes Ticket per validate_ticket.py.
-    Liefert (ok, out). Fällt zurück, falls Validator fehlt."""
-    validator = os.path.join(FACTORY_DIR, "scripts", "validate_ticket.py")
-    if not os.path.exists(validator):
-        return True, ""
-    r = subprocess.run([sys.executable, validator, path],
-                       capture_output=True, text=True)
-    return (r.returncode == 0), (r.stdout or "") + (r.stderr or "")
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
 
+    parser = argparse.ArgumentParser(
+        description="Sync Nextcloud Deck cards (Stack Ready) to local tickets."
+    )
+    parser.add_argument("--once", action="store_true", help="Run a single sync cycle.")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Only print what would be imported; write nothing.")
+    args = parser.parse_args(argv)
 
-# --- Main -------------------------------------------------------------------
-def main(argv: list = None) -> int:
-    ap = argparse.ArgumentParser(description="Importiert Deck-Ready-Cards in die Datei-Queue.")
-    ap.add_argument("--once", action="store_true", default=True,
-                    help="einmal ausführen und beenden (Default)")
-    ap.add_argument("--dry-run", action="store_true",
-                    help="nur anzeigen, was importiert würde; nichts schreiben")
-    ap.add_argument("--board", type=int, default=BOARD_ID,
-                    help=f"Deck-Board-ID (Default {BOARD_ID})")
-    ap.add_argument("--stack", type=str, default=STACK_TITLE_DEFAULT,
-                    help=f"Stack-Titel zu matchen (Default '{STACK_TITLE_DEFAULT}')")
-    args = ap.parse_args(argv)
+    if not args.once:
+        parser.error("Must specify --once")
 
-    h, auth_status = get_auth()
-    if h is None:
-        print(f"ERROR: {auth_status}", file=sys.stderr)
-        return 2
+    print("Deck Sync: board='%s', stack='%s'" % (BOARD_NAME, STACK_TITLE))
+    print("Mode: %s" % ("DRY-RUN" if args.dry_run else "LIVE"))
+    print()
 
-    st, body = http("GET",
-        f"/index.php/apps/deck/api/v1.0/boards/{args.board}/stacks",
-        headers=h)
-    if st != 200:
-        print(f"ERROR: Deck API nicht erreichbar (HTTP {st}): {body[:200]}", file=sys.stderr)
-        return 2
     try:
-        stacks = json.loads(body)
-    except json.JSONDecodeError as e:
-        print(f"ERROR: Stack-Listung unlesbar: {e}", file=sys.stderr)
-        return 2
+        cards = deck().cards(STACK_TITLE)
+    except (ConnectionError, OSError, FactoryError) as e:
+        print("[ERROR] %s" % e, file=sys.stderr)
+        return 1
 
-    stack = find_stack(stacks, args.stack, STACK_ID_DEFAULT)
-    if not stack:
-        print(f"ERROR: aktiver Stack mit Titel/Id '{args.stack}' nicht gefunden "
-              f"(Board {args.board}).")
-        return 2
-
-    cards = [c for c in stack.get("cards", []) if not c.get("deletedAt")]
     if not cards:
-        print(f"Stack '{stack.get('title')}' hat keine aktiven Karten. Nichts zu importieren.")
+        print("[INFO] No cards found in the specified stack.")
         return 0
 
-    state = load_state()
-    os.makedirs(TICKETS_NEW, exist_ok=True)
-    imported = 0
-    for card in cards:
-        card_id = card.get("id")
-        sid = str(card_id)  # State-Keys als String (JSON-Standard), einheitlich
-        title = card.get("title") or "(keine Titel)"
-        filename = make_filename(card_id, title)
-        content = build_content(card, stack)
-        path = os.path.join(TICKETS_NEW, filename)
-        # Kollision (anderes card, gleicher Slug) -> card_id ins Name einbauen
-        if os.path.exists(path) and sid not in state:
-            base, ext = os.path.splitext(path)
-            filename = f"{base}-{card_id}{ext}"
-            path = os.path.join(TICKETS_NEW, filename)
-        if args.dry_run:
-            print(f"[dry-run] card {card_id} -> {path}")
-            continue
-        if sid in state:
-            print(f"[skip] card {card_id} bereits importiert -> {state[sid].get('file')}")
-            continue
-        with open(path, "w") as f:
-            f.write(content)
-        ok, out = _validate_ticket(path)
-        if not ok:
-            os.remove(path)
-            print(f"[skip] validation FAILED -> {path}")
-            print(f"    {out.strip()[:200]}")
-            continue
-        state[sid] = {"file": filename, "title": title,
-                      "imported_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
-        save_state(state)
-        imported += 1
-        print(f"[import] card {card_id} -> {path}")
+    imported_ids = load_state()
+    imported_count = 0
+    skipped_count = 0
 
-    print(f"Fertig. importiert={imported} dry_run={args.dry_run}")
+    for card in cards:
+        card_id = int(card.get("id", 0))
+        title = card.get("title", "Untitled") or "Untitled"
+        description = card.get("description") or ""
+
+        if card_id in imported_ids:
+            print("[SKIP] Card %s (%s) already imported." % (card_id, title))
+            skipped_count += 1
+            continue
+
+        create_ticket_file(card_id, title, description, args.dry_run)
+        imported_ids.append(card_id)
+        imported_count += 1
+
+    if not args.dry_run:
+        save_state(imported_ids)
+
+    print()
+    print("Summary: %d imported, %d skipped, %d total."
+          % (imported_count, skipped_count, len(cards)))
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())
